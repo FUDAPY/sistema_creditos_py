@@ -30,3 +30,15 @@ export class RejectPaymentDto {
   @IsString()
   reason?: string;
 }
+
+export class UpdatePaymentAmountDto {
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+}
+
+export class DeletePaymentDto {
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+}
