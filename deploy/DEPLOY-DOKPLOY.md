@@ -18,7 +18,7 @@ Crear un servicio **Compose** apuntando al repo con el contenido de `migrator.co
 Environment del proyecto:
 ```env
 COMPANY_ID=lin_group_sa_001
-MONGO_URI=mongodb://giuli:7179073g@creditos-creditos-5ngjs4:27017/syscreditos?authSource=admin
+MONGO_URI=mongodb://giuli:<TU_PASSWORD>@creditos-creditos-5ngjs4:27017/syscreditos?authSource=admin
 FIREBASE_SERVICE_ACCOUNT_JSON=<contenido del sys-creditos-lingroup-...json en UNA linea>
 ```
 Deploy -> revisar logs (RESUMEN por coleccion). El contenedor termina solo (`restart: "no"`).
@@ -33,7 +33,7 @@ Environment de la API:
 ```env
 PORT=3000
 COMPANY_ID=lin_group_sa_001
-MONGO_URI=mongodb://giuli:7179073g@creditos-creditos-5ngjs4:27017/syscreditos?authSource=admin
+MONGO_URI=mongodb://giuli:<TU_PASSWORD>@creditos-creditos-5ngjs4:27017/syscreditos?authSource=admin
 JWT_SECRET=<secreto-largo-aleatorio>
 JWT_EXPIRES_IN=8h
 CORS_ORIGIN=https://creditos.lingroupsapy.com

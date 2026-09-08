@@ -20,6 +20,9 @@ export interface PaymentDoc extends Document {
   interestApplied?: number;
   arrearsApplied?: number;
   paidAt?: number;
+  previousBalance?: number;
+  interestDueAtPayment?: number;
+  lateFeeDueAtPayment?: number;
 }
 
 export interface LoanDoc extends Document {
@@ -532,6 +535,230 @@ export class PaymentsService {
 
     await this.audit.log({
       action: 'ANNUL_SETTLEMENT',
+      entity: 'PAYMENT',
+      entityId: paymentId,
+      details: { loanId: payment.loanId, amount: payment.amount, reason: normalizedReason },
+      actor,
+    });
+  }
+
+  async getLatestApprovedForLoan(
+    companyId: string,
+    loanId: string,
+  ): Promise<PaymentDoc | null> {
+    return this.paymentModel
+      .findOne({
+        companyId,
+        loanId,
+        approvalStatus: 'APPROVED',
+        estadoRendicion: { $ne: 'anulado' },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  /** Edita el monto de un abono YA APROBADO: revierte el impacto previo y lo recalcula. */
+  async updateAmount(
+    companyId: string,
+    paymentId: string,
+    newAmount: number,
+    actor: RequestUser,
+  ): Promise<void> {
+    const payment = await this.paymentModel.findOne({ _id: paymentId, companyId }).exec();
+    if (!payment) throw new NotFoundException('El abono no existe.');
+    if (payment.approvalStatus !== 'APPROVED' || payment.estadoRendicion === 'anulado') {
+      throw new BadRequestException('Solo se pueden editar abonos ya aprobados.');
+    }
+    const loan = await this.loanModel.findOne({ _id: payment.loanId, companyId }).exec();
+    if (!loan) throw new NotFoundException('El credito asociado no existe.');
+    const now = Date.now();
+
+    const revertedPrincipalBalance = (loan.currentBalance || 0) + (payment.principalApplied || 0);
+    const revertedInterestBalance =
+      (loan.accruedInterestBalance || 0) + (payment.interestApplied || 0);
+    const revertedLateFeeBalance =
+      (loan.accruedLateFeeBalance || 0) + (payment.arrearsApplied || 0);
+    const revertedPaidAmount = Math.max(0, (loan.paidAmount || 0) - payment.amount);
+    const revertedInterestPaid = Math.max(
+      0,
+      (loan.interestPaidAmount || 0) -
+        (payment.interestApplied || 0) -
+        (payment.arrearsApplied || 0),
+    );
+
+    const maxEditableAmount =
+      payment.paymentType === 'CAPITAL'
+        ? revertedPrincipalBalance
+        : payment.paymentType === 'INTEREST'
+          ? revertedInterestBalance + revertedLateFeeBalance
+          : revertedPrincipalBalance + revertedInterestBalance + revertedLateFeeBalance;
+
+    if (newAmount > maxEditableAmount) {
+      const currency = (payment as unknown as { currency?: string }).currency;
+      throw new BadRequestException(
+        `El nuevo monto no puede superar ${currency === 'USD' ? 'USD' : 'Gs.'} ${maxEditableAmount.toLocaleString('es-PY')}.`,
+      );
+    }
+
+    const recalculated = applyPaymentByType(
+      {
+        principalBalance: payment.previousBalance || revertedPrincipalBalance,
+        accruedInterestBalance: payment.interestDueAtPayment || revertedInterestBalance,
+        accruedLateFeeBalance: payment.lateFeeDueAtPayment || revertedLateFeeBalance,
+      },
+      newAmount,
+      payment.paymentType || 'MIXED',
+    );
+
+    const newPrincipalBalance = recalculated.resultingPrincipalBalance;
+    const newInterestBalance = recalculated.resultingInterestBalance;
+    const newLateFeeBalance = recalculated.resultingLateFeeBalance;
+    const newStatus =
+      newPrincipalBalance <= 0 && newInterestBalance <= 0 && newLateFeeBalance <= 0
+        ? 'PAID'
+        : loan.status === 'FROZEN'
+          ? 'FROZEN'
+          : 'ACTIVE';
+
+    const session = await this.paymentModel.db.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await this.loanModel
+          .updateOne(
+            { _id: loan.id },
+            {
+              $set: {
+                currentBalance: newPrincipalBalance,
+                totalAmount: newPrincipalBalance + newInterestBalance + newLateFeeBalance,
+                paidAmount: revertedPaidAmount + newAmount,
+                interestPaidAmount:
+                  revertedInterestPaid + recalculated.lateFeeApplied + recalculated.interestApplied,
+                accruedInterestBalance: newInterestBalance,
+                accruedLateFeeBalance: newLateFeeBalance,
+                status: newStatus,
+                updatedAt: now,
+              },
+            },
+            { session },
+          )
+          .exec();
+        await this.paymentModel
+          .updateOne(
+            { _id: paymentId, companyId },
+            {
+              $set: {
+                amount: newAmount,
+                newBalance: newPrincipalBalance,
+                principalApplied: recalculated.principalApplied,
+                interestApplied: recalculated.interestApplied,
+                arrearsApplied: recalculated.lateFeeApplied,
+                resultingInterestBalance: newInterestBalance,
+                resultingLateFeeBalance: newLateFeeBalance,
+                commissionAmount: Math.round(newAmount * 0.07),
+                updatedAt: now,
+              },
+            },
+            { session },
+          )
+          .exec();
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    await this.audit.log({
+      action: 'UPDATE_PAYMENT',
+      entity: 'PAYMENT',
+      entityId: paymentId,
+      details: { loanId: payment.loanId, previousAmount: payment.amount, newAmount },
+      actor,
+    });
+  }
+
+  /** Elimina (anula) el ULTIMO abono aprobado de un credito, revirtiendo su impacto. */
+  async deletePayment(
+    companyId: string,
+    paymentId: string,
+    reason: string,
+    actor: RequestUser,
+  ): Promise<void> {
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) throw new BadRequestException('La razon de anulacion es obligatoria.');
+    const payment = await this.paymentModel.findOne({ _id: paymentId, companyId }).exec();
+    if (!payment) throw new NotFoundException('El abono no existe.');
+    const latestApproved = await this.getLatestApprovedForLoan(companyId, payment.loanId);
+    const latestId = String(
+      (latestApproved as unknown as { id?: string }).id ??
+        (latestApproved as unknown as { _id?: string })._id ??
+        '',
+    );
+    if (!latestApproved || latestId !== paymentId) {
+      throw new BadRequestException('Solo se puede eliminar el ultimo abono aprobado de este credito.');
+    }
+    if (payment.approvalStatus !== 'APPROVED' || payment.estadoRendicion === 'anulado') {
+      throw new BadRequestException('Solo se pueden eliminar abonos ya aprobados.');
+    }
+    const loan = await this.loanModel.findOne({ _id: payment.loanId, companyId }).exec();
+    if (!loan) throw new NotFoundException('El credito asociado no existe.');
+    const now = Date.now();
+
+    const session = await this.paymentModel.db.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await this.loanModel
+          .updateOne(
+            { _id: loan.id },
+            {
+              $set: {
+                currentBalance: (loan.currentBalance || 0) + (payment.principalApplied || 0),
+                totalAmount:
+                  (loan.currentBalance || 0) +
+                  (payment.principalApplied || 0) +
+                  (loan.accruedInterestBalance || 0) +
+                  (payment.interestApplied || 0) +
+                  (loan.accruedLateFeeBalance || 0) +
+                  (payment.arrearsApplied || 0),
+                paidAmount: Math.max(0, (loan.paidAmount || 0) - payment.amount),
+                interestPaidAmount: Math.max(
+                  0,
+                  (loan.interestPaidAmount || 0) -
+                    (payment.interestApplied || 0) -
+                    (payment.arrearsApplied || 0),
+                ),
+                accruedInterestBalance:
+                  (loan.accruedInterestBalance || 0) + (payment.interestApplied || 0),
+                accruedLateFeeBalance:
+                  (loan.accruedLateFeeBalance || 0) + (payment.arrearsApplied || 0),
+                status: loan.status === 'FROZEN' ? 'FROZEN' : 'ACTIVE',
+                updatedAt: now,
+              },
+            },
+            { session },
+          )
+          .exec();
+        await this.paymentModel
+          .updateOne(
+            { _id: paymentId, companyId },
+            {
+              $set: {
+                approvalStatus: 'REJECTED',
+                estadoRendicion: 'anulado',
+                anuladoAt: now,
+                anuladoBy: actor.uid,
+                anulacionRazon: normalizedReason,
+                updatedAt: now,
+              },
+            },
+            { session },
+          )
+          .exec();
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    await this.audit.log({
+      action: 'ANNUL_PAYMENT',
       entity: 'PAYMENT',
       entityId: paymentId,
       details: { loanId: payment.loanId, amount: payment.amount, reason: normalizedReason },

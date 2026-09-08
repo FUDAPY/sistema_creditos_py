@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   const companyId = env('COMPANY_ID', 'lin_group_sa_001');
   const mongoUri = env(
     'MONGO_URI',
-    'mongodb://giuli:7179073g@localhost:27017/syscreditos?authSource=admin',
+    'mongodb://127.0.0.1:27017/syscreditos', // sin credenciales por defecto; definirlas en migrator/.env
   );
 
   console.log(`[migrator] Empresa: ${companyId}`);
