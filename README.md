@@ -66,6 +66,8 @@ npm run migrate:run  --workspace @syscreditos/migrator  # escritura real
 
 MIT
 
+[![License MIT](https://img.shields.io/badge/Licencia-MIT-yellow?style=for-the-badge)](LICENSE)
+
 ```
 MIT License
 
