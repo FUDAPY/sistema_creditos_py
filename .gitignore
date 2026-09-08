@@ -1,0 +1,29 @@
+# Dependencias y build
+node_modules/
+dist/
+build/
+coverage/
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+*.local
+*-firebase-adminsdk-*.json
+**/secrets/*.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Herramientas / editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Datos locales (Mongo, backups)
+.mongo/
+backup*/
+data/

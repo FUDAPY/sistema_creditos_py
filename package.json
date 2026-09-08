@@ -1,0 +1,22 @@
+{
+  "name": "syscreditos-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SysCreditos - Sistema de creditos (rewrite moderno sobre VPS: React + NestJS + MongoDB)",
+  "workspaces": [
+    "api",
+    "packages/shared",
+    "migrator"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @syscreditos/shared && npm run build --workspace @syscreditos/api",
+    "dev": "npm run start:dev --workspace @syscreditos/api",
+    "dev:shared": "npm run dev --workspace @syscreditos/shared",
+    "migrate:dry": "npm run migrate:dry --workspace @syscreditos/migrator",
+    "migrate:run": "npm run migrate:run --workspace @syscreditos/migrator",
+    "compose:up": "docker compose -f deploy/docker-compose.yml up -d"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

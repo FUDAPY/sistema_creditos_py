@@ -1,0 +1,33 @@
+# SysCreditos — infraestructura local/Dokploy (fase 1: solo MongoDB)
+# Nota: MongoDB en replica-set de 1 nodo para soportar transacciones multi-documento.
+services:
+  mongo:
+    image: mongo:7
+    container_name: syscreditos-mongo
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - mongosh
+      - --host
+      - mongo
+      - --eval
+      - 'rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] })'
+
+volumes:
+  mongo-data:

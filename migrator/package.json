@@ -1,0 +1,17 @@
+{
+  "name": "@syscreditos/migrator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate:dry": "ts-node src/index.ts --dry-run",
+    "migrate:run": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "mongoose": "^8.15.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
