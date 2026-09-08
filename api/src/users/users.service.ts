@@ -7,7 +7,6 @@ import * as bcrypt from 'bcryptjs';
 import type { Role } from '@syscreditos/shared';
 
 export interface UserDoc extends Document {
-  _id: string;
   uid: string;
   email: string;
   name: string;
@@ -57,9 +56,11 @@ export class UsersService {
   }
 
   toPublicUser(doc: UserDoc): PublicUser {
+    const rawId = (doc as unknown as { _id?: string | { toString(): string } })._id;
+    const id = rawId ? String(rawId) : doc.uid;
     return {
-      id: doc._id,
-      uid: doc.uid ?? doc._id,
+      id,
+      uid: doc.uid ?? id,
       email: doc.email,
       name: doc.name,
       role: doc.role,
