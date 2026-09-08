@@ -29,8 +29,34 @@ export const COLLECTION_ORDER = [
   'slotMachineEntries',
   'clientCreditRequests',
   'auditLogs',
+  // Nota: en Firestore el esquema real no incluye "rendiciones" en la vista del usuario;
+  // existe solo si el sync con Financiero la creo. Si no existe, se salta (0 docs).
   'rendiciones',
 ];
+
+/** Las colecciones del Firestore (companies/lin_group_sa_001) que deben coincidir en MongoDB. */
+export const EXPECTED_COLLECTIONS = [
+  'auditLogs',
+  'chatThreads',
+  'clientCreditRequests',
+  'clients',
+  'collectionManagements',
+  'juridicoCredits',
+  'loanAssignmentHistory',
+  'loans',
+  'pagares',
+  'paymentDayLocks',
+  'payments',
+  'posClients',
+  'slotMachineEntries',
+  'slotMachineSites',
+  'users',
+];
+
+export function validateCoverage(): string[] {
+  const missing = EXPECTED_COLLECTIONS.filter((name) => !COLLECTION_ORDER.includes(name));
+  return missing;
+}
 
 export interface CollectionResult {
   collection: string;
@@ -40,23 +66,25 @@ export interface CollectionResult {
   error?: string;
 }
 
-async function countCollection(firestore: Firestore, name: string): Promise<number> {
+async function countCollection(firestore: Firestore, companyId: string, name: string): Promise<number> {
   try {
-    const snap = await firestore.collection(name).count().get();
+    const snap = await firestore.collection(`companies/${companyId}/${name}`).count().get();
     return snap.data().count ?? 0;
   } catch {
-    // Fallback si count() no esta disponible (emulador antiguo).
-    const snap = await firestore.collection(name).get();
+    const snap = await firestore.collection(`companies/${companyId}/${name}`).get();
     return snap.size;
   }
 }
 
 /** Lee todos los documentos paginando por __name__ (no depende del tamaño). */
-async function* iterateDocs(firestore: Firestore, name: string) {
+async function* iterateDocs(firestore: Firestore, companyId: string, name: string) {
   let lastId: string | null = null;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    let query = firestore.collection(name).orderBy('__name__').limit(BATCH_SIZE);
+    let query = firestore
+      .collection(`companies/${companyId}/${name}`)
+      .orderBy('__name__')
+      .limit(BATCH_SIZE);
     if (lastId) query = query.startAfter(lastId);
     const snap = await query.get();
     if (snap.empty) return;
@@ -81,10 +109,11 @@ async function upsertBatch(
   return result.upsertedCount + result.modifiedCount;
 }
 
-/** Migra una colección (dry-run: solo conteo). */
+/** Migra una colección (dry-run: solo conteo, no requiere MongoDB). */
 export async function migrateCollection(
-  db: Db,
+  db: Db | null,
   firestore: Firestore,
+  companyId: string,
   collectionName: string,
   dryRun: boolean,
 ): Promise<CollectionResult> {
@@ -94,15 +123,17 @@ export async function migrateCollection(
     written: 0,
     ok: true,
   };
-  const target = db.collection(collectionName);
 
-  result.source = await countCollection(firestore, collectionName);
+  result.source = await countCollection(firestore, companyId, collectionName);
   if (result.source === 0) return result;
   if (dryRun) return result;
+  if (!db) throw new Error('MongoDB no conectado.');
+
+  const target = db.collection(collectionName);
 
   try {
     let batch: Array<Record<string, unknown>> = [];
-    for await (const doc of iterateDocs(firestore, collectionName)) {
+    for await (const doc of iterateDocs(firestore, companyId, collectionName)) {
       batch.push(normalizeDoc(doc));
       if (batch.length >= BATCH_SIZE) {
         await upsertBatch(target, batch);
@@ -124,12 +155,13 @@ export async function migrateCollection(
 /** Ejecuta la migración completa y devuelve el reporte. */
 export async function runMigration(
   firestore: Firestore,
+  companyId: string,
   dryRun: boolean,
+  db: Db | null = null,
 ): Promise<CollectionResult[]> {
-  const db = mongoose.connection.db as Db;
   const results: CollectionResult[] = [];
   for (const name of COLLECTION_ORDER) {
-    const res = await migrateCollection(db, firestore, name, dryRun);
+    const res = await migrateCollection(db, firestore, companyId, name, dryRun);
     results.push(res);
     const label = dryRun ? 'contados' : 'migrados';
     console.log(

@@ -3,7 +3,7 @@ import { cert, initializeApp, deleteApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { loadEnv, env } from './env';
 import { findServiceAccount } from './sa';
-import { runMigration } from './runner';
+import { runMigration, validateCoverage } from './runner';
 
 async function main(): Promise<void> {
   loadEnv();
@@ -17,6 +17,14 @@ async function main(): Promise<void> {
   console.log(`[migrator] Empresa: ${companyId}`);
   console.log(`[migrator] Modo: ${dryRun ? 'DRY-RUN (solo lectura, no escribe)' : 'REAL (escribe en Mongo)'}`);
 
+  // Verificacion de cobertura: todas las colecciones de Firestore deben mapearse.
+  const missing = validateCoverage();
+  if (missing.length > 0) {
+    console.error(`[migrator] Faltan colecciones en el orden de migracion: ${missing.join(', ')}`);
+    process.exitCode = 1;
+    return;
+  }
+
   // 1) Firestore (proyecto sys-creditos-lingroup)
   const serviceAccountPath = findServiceAccount();
   console.log(`[migrator] Service account: ${serviceAccountPath}`);
@@ -26,12 +34,16 @@ async function main(): Promise<void> {
   });
   const firestore: Firestore = getFirestore(app);
 
-  // 2) MongoDB
+  // 2) MongoDB (solo necesario en modo REAL; dry-run solo consulta Firestore)
   console.log(`[migrator] MongoDB: ${mongoUri.replace(/\/\/[^@]+@/, '//***:***@')}`);
-  await mongoose.connect(mongoUri);
+  let db: mongoose.mongo.Db | null = null;
+  if (!dryRun) {
+    await mongoose.connect(mongoUri);
+    db = mongoose.connection.db ?? null;
+  }
 
   try {
-    const results = await runMigration(firestore, dryRun);
+    const results = await runMigration(firestore, companyId, dryRun, db);
     const totalSource = results.reduce((sum, r) => sum + r.source, 0);
     const totalWritten = results.reduce((sum, r) => sum + r.written, 0);
     const errors = results.filter((r) => !r.ok);
