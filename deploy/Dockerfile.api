@@ -1,0 +1,37 @@
+# ============================================================
+# SysCreditos API - imagen para Dokploy (Railpack/Docker)
+# Build context: RAIZ del repo (docker build -f deploy/Dockerfile.api .)
+# ============================================================
+FROM node:22-alpine AS build
+WORKDIR /app
+
+# Manifiestos de todos los workspaces (requerido por npm ci)
+COPY package.json package-lock.json ./
+COPY api/package.json ./api/
+COPY packages/shared/package.json ./packages/shared/
+COPY migrator/package.json ./migrator/
+RUN npm ci --no-audit --no-fund --ignore-scripts
+
+# Codigo fuente
+COPY api ./api
+COPY packages/shared ./packages/shared
+RUN npm run build --workspace @syscreditos/shared && npm run build --workspace @syscreditos/api
+
+# Quitar dependencias de desarrollo
+RUN npm prune --omit=dev --no-audit --no-fund --ignore-scripts
+
+FROM node:22-alpine
+ENV NODE_ENV=production
+ENV PORT=3000
+WORKDIR /app
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./
+COPY --from=build /app/api/dist ./api/dist
+COPY --from=build /app/api/package.json ./api/package.json
+COPY --from=build /app/packages/shared/dist ./packages/shared/dist
+COPY --from=build /app/packages/shared/package.json ./packages/shared/package.json
+
+EXPOSE 3000
+# La API auto-provisiona el ADMIN si SEED_ADMIN_PASSWORD esta definido.
+CMD ["node", "api/dist/main.js"]

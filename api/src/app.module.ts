@@ -6,6 +6,11 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
 import { PagaresModule } from './pagares/pagares.module';
+import { LoansModule } from './loans/loans.module';
+import { PaymentsModule } from './payments/payments.module';
+import { CollectionModule } from './collection/collection.module';
+import { SlotMachinesModule } from './slot-machines/slot-machines.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -25,6 +30,11 @@ import { HealthController } from './health.controller';
     AuthModule,
     ClientsModule,
     PagaresModule,
+    LoansModule,
+    PaymentsModule,
+    CollectionModule,
+    SlotMachinesModule,
+    IntegrationsModule,
   ],
   controllers: [HealthController],
 })
