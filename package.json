@@ -5,6 +5,7 @@
   "description": "SysCreditos - Sistema de creditos (rewrite moderno sobre VPS: React + NestJS + MongoDB)",
   "workspaces": [
     "api",
+    "web",
     "packages/shared",
     "migrator"
   ],
