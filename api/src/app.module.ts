@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { ClientsModule } from './clients/clients.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -17,8 +19,10 @@ import { HealthController } from './health.controller';
         uri: config.get<string>('MONGO_URI', 'mongodb://localhost:27017/syscreditos'),
       }),
     }),
+    AuditModule,
     UsersModule,
     AuthModule,
+    ClientsModule,
   ],
   controllers: [HealthController],
 })

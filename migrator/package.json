@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "migrate:dry": "ts-node src/index.ts --dry-run",
     "migrate:run": "ts-node src/index.ts"
   },
@@ -15,3 +16,4 @@
     "typescript": "^5.7.2"
   }
 }
+
