@@ -10,6 +10,7 @@ import { LoansModule } from './loans/loans.module';
 import { PaymentsModule } from './payments/payments.module';
 import { CollectionModule } from './collection/collection.module';
 import { SlotMachinesModule } from './slot-machines/slot-machines.module';
+import { SpecialModule } from './special/special.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { HealthController } from './health.controller';
 
@@ -34,6 +35,7 @@ import { HealthController } from './health.controller';
     PaymentsModule,
     CollectionModule,
     SlotMachinesModule,
+    SpecialModule,
     IntegrationsModule,
   ],
   controllers: [HealthController],
