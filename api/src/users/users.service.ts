@@ -129,9 +129,9 @@ export class UsersService {
     const existing = await this.findByCompanyAndEmail(companyId, normalized);
     if (existing) {
       await this.setPassword(companyId, existing.uid, password);
-      if (!existing.isActive) {
-        await this.update(companyId, existing.uid, { isActive: true });
-      }
+      const patch: Partial<Pick<PublicUser, 'isActive' | 'role'>> = { role: 'ADMIN' };
+      if (!existing.isActive) patch.isActive = true;
+      await this.update(companyId, existing.uid, patch);
       const doc = await this.findByUid(companyId, existing.uid);
       return this.toPublicUser(doc as UserDoc);
     }
