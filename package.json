@@ -11,6 +11,7 @@
   "scripts": {
     "build": "npm run build --workspace @syscreditos/shared && npm run build --workspace @syscreditos/api",
     "dev": "npm run start:dev --workspace @syscreditos/api",
+    "start": "node api/dist/main.js",
     "dev:shared": "npm run dev --workspace @syscreditos/shared",
     "migrate:dry": "npm run migrate:dry --workspace @syscreditos/migrator",
     "migrate:run": "npm run migrate:run --workspace @syscreditos/migrator",

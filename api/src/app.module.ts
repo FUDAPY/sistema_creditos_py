@@ -5,6 +5,7 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
+import { PagaresModule } from './pagares/pagares.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { HealthController } from './health.controller';
     UsersModule,
     AuthModule,
     ClientsModule,
+    PagaresModule,
   ],
   controllers: [HealthController],
 })
