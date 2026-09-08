@@ -19,13 +19,12 @@ async function seed() {
     if (!password || password.length < 6) {
       throw new Error('Defina SEED_ADMIN_PASSWORD (min 6 caracteres).');
     }
-    try {
-      const user = await users.create({ email, name, role: 'ADMIN', password });
-      console.log(`[seed] ADMIN creado: ${user.email} (${user.id})`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(`[seed] ${message}`);
-    }
+    const admin = await users.ensureAdmin(email, name, password);
+    console.log(`[seed] ADMIN listo: ${admin.email} (${admin.id})`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[seed] ${message}`);
+    process.exitCode = 1;
   } finally {
     await ctx.close();
   }

@@ -115,6 +115,29 @@ export class UsersService {
     return this.toPublicUser(doc);
   }
 
+  /**
+   * Crea el primer ADMIN, o si el email ya existe (usuario migrado sin contrasena
+   * desde Firebase Auth), le asigna/resetea la contrasena y lo deja activo.
+   */
+  async ensureAdmin(
+    email: string,
+    name: string,
+    password: string,
+  ): Promise<PublicUser> {
+    const companyId = this.defaultCompanyId();
+    const normalized = email.toLowerCase().trim();
+    const existing = await this.findByCompanyAndEmail(companyId, normalized);
+    if (existing) {
+      await this.setPassword(companyId, existing.uid, password);
+      if (!existing.isActive) {
+        await this.update(companyId, existing.uid, { isActive: true });
+      }
+      const doc = await this.findByUid(companyId, existing.uid);
+      return this.toPublicUser(doc as UserDoc);
+    }
+    return this.create({ email: normalized, name, role: 'ADMIN', password, companyId });
+  }
+
   async update(
     companyId: string,
     uid: string,

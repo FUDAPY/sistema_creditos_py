@@ -1,0 +1,19 @@
+# ============================================================
+# Migrador SysCreditos (one-shot) para Dokploy
+# Build context: raiz del repo. Dokploy: build.dockerfile = migrator/Dockerfile
+# Uso en VPS: corre dentro de la red interna y escribe en el MongoDB interno.
+# ============================================================
+services:
+  migrator:
+    build:
+      context: .
+      dockerfile: migrator/Dockerfile
+    # Para probar sin escribir usa: ["node", "dist/index.js", "--dry-run"]
+    command: ["node", "dist/index.js"]
+    environment:
+      COMPANY_ID: lin_group_sa_001
+      # URI INTERNA de la BD (solo visible dentro de la red de Dokploy)
+      MONGO_URI: mongodb://giuli:7179073g@creditos-creditos-5ngjs4:27017/syscreditos?authSource=admin
+      # Contenido completo del service account sys-creditos-lingroup (una linea JSON)
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+    restart: "no"

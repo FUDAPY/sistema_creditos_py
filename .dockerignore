@@ -1,0 +1,16 @@
+# Dependencias y builds
+node_modules
+dist
+build
+coverage
+
+# Git y entorno
+.git
+.env
+.env.*
+*.local
+
+# Logs y datos locales
+*.log
+.mongo
+backup*

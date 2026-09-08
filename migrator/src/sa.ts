@@ -1,14 +1,23 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /**
  * Busca el service account del proyecto Firebase principal (sys-creditos-lingroup).
  * Prioridad:
- *  1) env FIRESTORE_SERVICE_ACCOUNT
- *  2) carpeta hermana sistema_creditos_legacy (raiz y functions/secrets)
- *  3) carpeta actual (migrator) y la raiz del repo
+ *  1) env FIREBASE_SERVICE_ACCOUNT_JSON  (contenido del JSON; util en contenedores)
+ *  2) env FIRESTORE_SERVICE_ACCOUNT      (ruta a archivo)
+ *  3) carpeta hermana sistema_creditos_legacy (raiz y functions/secrets)
+ *  4) carpeta actual (migrator) y la raiz del repo
  */
 export function findServiceAccount(): string {
+  const jsonContent = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (jsonContent && jsonContent.includes('project_id')) {
+    const tempPath = path.join(os.tmpdir(), `syscreditos-firebase-sa-${Date.now()}.json`);
+    fs.writeFileSync(tempPath, jsonContent, 'utf8');
+    return tempPath;
+  }
+
   const explicit = process.env.FIRESTORE_SERVICE_ACCOUNT;
   if (explicit && fs.existsSync(explicit)) return explicit;
 
@@ -44,6 +53,8 @@ export function findServiceAccount(): string {
     }
   }
   throw new Error(
-    'No se encontro el service account de sys-creditos-lingroup. Use la env FIRESTORE_SERVICE_ACCOUNT.',
+    'No se encontro el service account de sys-creditos-lingroup. ' +
+      'Use la env FIREBASE_SERVICE_ACCOUNT_JSON o FIRESTORE_SERVICE_ACCOUNT.',
   );
 }
+
