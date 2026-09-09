@@ -10,7 +10,7 @@
     "migrator"
   ],
   "scripts": {
-    "build": "npm run build --workspace @syscreditos/shared && npm run build --workspace @syscreditos/api",
+    "build": "npm run build --workspace @syscreditos/shared && npm run build --workspace @syscreditos/api && npm run build --workspace @syscreditos/web",
     "dev": "npm run start:dev --workspace @syscreditos/api",
     "start": "node api/dist/main.js",
     "dev:shared": "npm run dev --workspace @syscreditos/shared",

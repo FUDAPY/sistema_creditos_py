@@ -1,12 +1,29 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { UsersService } from './users/users.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
+
+  // Sirve el frontend (web/) en la raiz cuando existe el build; la API sigue en /api/v1
+  const webDist = join(process.cwd(), 'web', 'dist');
+  if (existsSync(webDist)) {
+    app.useStaticAssets(webDist);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api')) {
+        res.sendFile(join(webDist, 'index.html'));
+      } else {
+        next();
+      }
+    });
+  }
 
   const corsOrigin = config.get<string>('CORS_ORIGIN', 'http://localhost:5173');
   app.enableCors({
