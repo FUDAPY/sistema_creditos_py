@@ -11,6 +11,7 @@ import CarteraActiva from './pages/CarteraActiva';
 import PagoRapido from './pages/PagoRapido';
 import AprobarRendicion from './pages/AprobarRendicion';
 import Calendario from './pages/Calendario';
+import Recaudo from './pages/Recaudo';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -48,7 +49,7 @@ export default function App() {
           {/* ADMINISTRACIÓN (solo ADMIN por RBAC) */}
           <Route path="/admin/aprobar-creditos" element={<Placeholder title="Aprobar Créditos" description="Bandeja de autorización de créditos pendientes." />} />
           <Route path="/admin/aprobar-rendicion" element={<AprobarRendicion />} />
-          <Route path="/admin/recaudo" element={<Placeholder title="Recaudo" description="Cobros por cobrador y administrador · comisiones 5% / 10%." />} />
+          <Route path="/admin/recaudo" element={<Recaudo />} />
 
           {/* USUARIOS */}
           <Route path="/admin/usuarios" element={<Placeholder title="Gestión de Usuarios" description="Crear, resetear contraseña y revocar acceso (sin borrar historial)." />} />
