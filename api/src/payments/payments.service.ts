@@ -181,39 +181,50 @@ export class PaymentsService {
     const commissionRate = 0.07; // comision por recibo (misma base del sistema original)
 
     // Proyección del impacto (el ADMIN recalcula al aprobar): alimenta el ticket
-    // térmico que se imprime al registrar el cobro.
-    const projectedAccrued = accrueLoanState(
-      {
-        principal: loan.principal ?? 0,
-        interestRate: loan.interestRate ?? 20,
-        loanType: loan.loanType as never,
-        status: loan.status,
-        approvalStatus: loan.approvalStatus,
-        currentBalance: loan.currentBalance,
-        interestPaidAmount: loan.interestPaidAmount,
-        paidAmount: loan.paidAmount,
-        cycleDays: loan.cycleDays,
-        grantedAt: loan.grantedAt,
-        expiresAt: loan.expiresAt,
-        nextDueDate: loan.nextDueDate,
-        lastAccruedAt: loan.lastAccruedAt,
-      },
-      paidAt,
-    );
-    const projectedSplits = applyPaymentByType(
-      {
-        principalBalance: projectedAccrued.principalBalance,
-        accruedInterestBalance: projectedAccrued.accruedInterestBalance,
-        accruedLateFeeBalance: projectedAccrued.accruedLateFeeBalance,
-      },
-      dto.amount,
-      paymentType,
-    );
-    const previousTotal = Math.round(
-      projectedAccrued.principalBalance +
-        projectedAccrued.accruedInterestBalance +
-        projectedAccrued.accruedLateFeeBalance,
-    );
+    // térmico que se imprime al registrar el cobro. Nunca debe tumbar el registro:
+    // si falla, el ticket se imprime con ceros y el cobro sigue.
+    let previousTotal = 0;
+    let projectedSplits = { principalApplied: 0, interestApplied: 0, lateFeeApplied: 0 };
+    try {
+      const projectedAccrued = accrueLoanState(
+        {
+          principal: Number(loan.principal) || 0,
+          interestRate: Number(loan.interestRate) || 20,
+          loanType: loan.loanType as never,
+          status: loan.status,
+          approvalStatus: loan.approvalStatus,
+          currentBalance: Number(loan.currentBalance) || 0,
+          interestPaidAmount: Number(loan.interestPaidAmount) || 0,
+          paidAmount: Number(loan.paidAmount) || 0,
+          cycleDays: Number(loan.cycleDays) || undefined,
+          grantedAt: Number(loan.grantedAt) || undefined,
+          expiresAt: Number(loan.expiresAt) || undefined,
+          nextDueDate: Number(loan.nextDueDate) || undefined,
+          lastAccruedAt: Number(loan.lastAccruedAt) || undefined,
+        },
+        paidAt,
+      );
+      projectedSplits = applyPaymentByType(
+        {
+          principalBalance: projectedAccrued.principalBalance,
+          accruedInterestBalance: projectedAccrued.accruedInterestBalance,
+          accruedLateFeeBalance: projectedAccrued.accruedLateFeeBalance,
+        },
+        dto.amount,
+        paymentType,
+      );
+      previousTotal = Math.round(
+        projectedAccrued.principalBalance +
+          projectedAccrued.accruedInterestBalance +
+          projectedAccrued.accruedLateFeeBalance,
+      );
+    } catch (projErr) {
+      console.warn(
+        `[payments:register] Proyección de ticket omitida (se imprime sin desglose): ${
+          projErr instanceof Error ? projErr.message : String(projErr)
+        }`,
+      );
+    }
 
     const session = await this.paymentModel.db.startSession();
     try {
@@ -286,9 +297,8 @@ export class PaymentsService {
         `[payments:register] Error al registrar pago loan=${dto.loanId} amount=${dto.amount} type=${paymentType}:`,
         err instanceof Error ? err.stack || err.message : err,
       );
-      throw new InternalServerErrorException(
-        'No se pudo registrar el pago. Reintente o contacte al administrador.',
-      );
+      const detail = (err instanceof Error ? err.message : String(err)).slice(0, 240);
+      throw new InternalServerErrorException(`No se pudo registrar el pago. Detalle: ${detail}`);
     } finally {
       await session.endSession();
     }
@@ -442,9 +452,8 @@ export class PaymentsService {
         `[payments:approve] Error al aprobar pago=${paymentId} loan=${payment.loanId}:`,
         err instanceof Error ? err.stack || err.message : err,
       );
-      throw new InternalServerErrorException(
-        'No se pudo aprobar el pago. Reintente o contacte al administrador.',
-      );
+      const detail = (err instanceof Error ? err.message : String(err)).slice(0, 240);
+      throw new InternalServerErrorException(`No se pudo aprobar el pago. Detalle: ${detail}`);
     } finally {
       await session.endSession();
     }
