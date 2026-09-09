@@ -204,6 +204,21 @@ export default function LoanRowActions({
               <label className={labelCls}>Monto</label>
               <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className={inputCls} />
             </div>
+            {(() => {
+              const value = Number(amount);
+              if (!Number.isFinite(value) || value <= 0) return null;
+              const nuevo = Math.max(0, (loan.currentBalance || 0) - value);
+              return (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+                  <span className="font-medium text-slate-800">Saldo actual</span>{' '}
+                  <span className="tabular-nums">{fmt(loan.currentBalance)}</span>
+                  <span className="mx-1 text-slate-400">−</span>
+                  <span className="font-medium text-rose-600 tabular-nums">{fmt(value)}</span>
+                  <span className="mx-1 text-slate-400">=</span>
+                  <span className="font-bold text-emerald-700 tabular-nums">Nuevo saldo {fmt(nuevo)}</span>
+                </div>
+              );
+            })()}
             <button
               onClick={() => void doCobro()}
               disabled={busy}

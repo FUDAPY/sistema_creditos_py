@@ -16,12 +16,26 @@ interface PaymentRow {
   id: string;
   amount: number;
   createdAt?: number;
+  paidAt?: number;
+  paymentType?: string;
+  principalApplied?: number;
+  interestApplied?: number;
+  arrearsApplied?: number;
 }
 
 const fmt = (v: number) => `${Math.round(v).toLocaleString('es-PY')}`;
 const dayKey = (t: number) => {
   const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const monthKeyOf = (t?: number) => {
+  if (!t) return '';
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const currentMonthKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
 export default function Dashboard() {
@@ -31,6 +45,7 @@ export default function Dashboard() {
   const [pendingPayments, setPendingPayments] = useState<PaymentRow[]>([]);
   const [error, setError] = useState('');
   const [syncSeconds, setSyncSeconds] = useState(0);
+  const [month, setMonth] = useState(currentMonthKey());
   const mounted = useRef(true);
 
   const scope = useMemo(() => (user?.role === 'COLLECTOR' ? `&collectorId=${user.uid}` : ''), [user]);
@@ -120,7 +135,27 @@ export default function Dashboard() {
     };
   }, [loans, approvedPayments, pendingPayments]);
 
+  // Desglose de cobro por componente: capital vs. interés (la mora se suma al interés).
+  const breakdown = useMemo(() => {
+    const tsOf = (p: PaymentRow) => p.paidAt || p.createdAt || 0;
+    const capOf = (p: PaymentRow) => p.principalApplied ?? 0;
+    const intOf = (p: PaymentRow) => (p.interestApplied ?? 0) + (p.arrearsApplied ?? 0);
+    const sums = (list: PaymentRow[]) =>
+      list.reduce(
+        (acc, p) => ({
+          amount: acc.amount + (p.amount || 0),
+          capital: acc.capital + capOf(p),
+          interes: acc.interes + intOf(p),
+        }),
+        { amount: 0, capital: 0, interes: 0 },
+      );
+    const mensual = sums(approvedPayments.filter((p) => monthKeyOf(tsOf(p)) === month));
+    const historico = sums(approvedPayments);
+    return { mensual, historico };
+  }, [approvedPayments, month]);
+
   const monthLabel = new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(new Date());
+
 
   return (
     <>
@@ -170,6 +205,47 @@ export default function Dashboard() {
                 <p className="mt-1 text-xs text-slate-400">{kpi.hint}</p>
               </div>
             ))}
+          </section>
+
+          {/* Desglose de cobro (mensual / histórico) */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700">Desglose de cobro · Capital vs. Interés</h3>
+                <p className="text-xs text-slate-400">
+                  La mora cobrada se suma a la columna de interés. Histórico = acumulado total aprobado.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-500">
+                Período
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-teal-700">Capital cobrado (mes)</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(breakdown.mensual.capital)}</p>
+                <p className="text-xs text-slate-400">de {fmt(breakdown.mensual.amount)} cobrado en el período</p>
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Interés cobrado (mes)</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(breakdown.mensual.interes)}</p>
+                <p className="text-xs text-slate-400">incluye moras del período</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Capital cobrado (histórico)</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(breakdown.historico.capital)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Interés cobrado (histórico)</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(breakdown.historico.interes)}</p>
+              </div>
+            </div>
           </section>
 
           {/* Tendencias */}

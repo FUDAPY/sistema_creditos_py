@@ -13,9 +13,20 @@ interface PaymentRow {
   loanId: string;
   collectorName?: string;
   amount: number;
+  paidAt?: number;
+  createdAt?: number;
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
+const currentMonthKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const monthKeyOf = (t?: number) => {
+  if (!t) return '';
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 const DAY = 86400000;
 const startUtcDay = (t: number) => {
   const d = new Date(t);
@@ -31,6 +42,7 @@ export default function Recaudo() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [error, setError] = useState('');
+  const [month, setMonth] = useState(currentMonthKey());
 
   useEffect(() => {
     Promise.all([api<PaymentRow[]>('/payments?approvalStatus=APPROVED'), api<LoanRow[]>('/loans')])
@@ -44,8 +56,9 @@ export default function Recaudo() {
   const loanMap = useMemo(() => new Map(loans.map((l) => [l.id, l])), [loans]);
 
   const rows = useMemo(() => {
+    const periodPayments = payments.filter((p) => monthKeyOf(p.paidAt || p.createdAt) === month);
     const map = new Map<string, { cobrado: number; buenos: number; malos: number; comBuenos: number; comMalos: number }>();
-    for (const p of payments) {
+    for (const p of periodPayments) {
       const loan = loanMap.get(p.loanId);
       const malo = loan ? moraOf(loan) > 30 : false;
       const rate = malo ? 0.1 : 0.05;
@@ -72,7 +85,7 @@ export default function Recaudo() {
         comMalos: v.comMalos,
       }))
       .sort((a, b) => b.cobrado - a.cobrado);
-  }, [payments, loanMap]);
+  }, [payments, loanMap, month]);
 
   const totals = useMemo(
     () =>
@@ -91,11 +104,22 @@ export default function Recaudo() {
   return (
     <div className="p-6">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-slate-900">Recaudo</h2>
-          <p className="text-sm text-slate-500">
-            Cobros aprobados por cobrador · comisión <b>5%</b> créditos Buenos · <b>10%</b> créditos Malos
-          </p>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Recaudo mensual</h2>
+            <p className="text-sm text-slate-500">
+              Cobros aprobados por cobrador · comisión <b>5%</b> créditos Buenos · <b>10%</b> créditos Malos · procesado por mes
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-slate-500">
+            Período
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-teal-400"
+            />
+          </label>
         </div>
 
         {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
