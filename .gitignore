@@ -27,3 +27,7 @@ npm-debug.log*
 .mongo/
 backup*/
 data/
+# Copias de trabajo de imagenes de marca en la raiz (versionadas en web/public)
+/fondo.jpg
+/CHICOLIN_PRESTAMOS.jpg
+

@@ -61,10 +61,14 @@ export default function SidebarLayout() {
     <div className="min-h-screen bg-slate-100 text-slate-800">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
         <div className="border-b border-slate-100 px-5 py-5">
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-            Sys<span className="text-teal-600">Creditos</span>
-          </h1>
-          <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-3">
+            <img src="/logo.jpg" alt="Chicolín Préstamos" className="h-10 w-10 rounded-lg object-contain" />
+            <div>
+              <h1 className="text-sm font-bold leading-tight tracking-tight text-slate-900">Chicolín Préstamos</h1>
+              <p className="text-[10px] text-slate-400">Gestión de créditos</p>
+            </div>
+          </div>
+          <p className="mt-3 flex items-center gap-2 text-xs text-slate-500">
             <Dot ok={dbUp !== false} />
             {dbUp === null ? 'Verificando BD…' : dbUp ? 'BD conectada' : 'BD sin conexión'}
           </p>
@@ -127,7 +131,10 @@ export default function SidebarLayout() {
       <main className="md:pl-64">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur md:hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="font-semibold text-slate-900">SysCreditos</span>
+          <div className="flex items-center gap-2">
+            <img src="/logo.jpg" alt="Chicolín Préstamos" className="h-7 w-7 rounded-md object-contain" />
+            <span className="font-semibold text-slate-900">Chicolín Préstamos</span>
+          </div>
             <button onClick={logout} className="text-sm text-rose-600">
               Salir
             </button>
