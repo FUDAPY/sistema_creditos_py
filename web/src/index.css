@@ -5,3 +5,75 @@
 body {
   @apply antialiased;
 }
+
+/* ── Tabla unificada de créditos (Cartera Activa / Empresas) ─────────────
+   Espaciado aireado + tipografía escalonada (nombres grandes, montos chicos). */
+table.credit-table thead th {
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+table.credit-table tbody td {
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+/* Columna cliente: ancho preferente y salto de línea limpio */
+table.credit-table tbody td:first-child {
+  min-width: 190px;
+  max-width: 300px;
+  font-size: 13px;
+}
+table.credit-table tbody td:first-child > * {
+  overflow-wrap: break-word;
+}
+
+/* Fechas (2 y 5) y textos secundarios compactos */
+table.credit-table tbody td:nth-child(2),
+table.credit-table tbody td:nth-child(5) {
+  font-size: 11px;
+  white-space: nowrap;
+  color: #64748b;
+}
+
+/* Tipo compacto */
+table.credit-table tbody td:nth-child(3) {
+  font-size: 11px;
+  white-space: nowrap;
+  color: #64748b;
+}
+
+/* Montos monetarios: escala menor + tabular (4 Capital, 6 Interés, 7 Mora, 8 Saldo, 9 Abonado) */
+table.credit-table tbody td:nth-child(4),
+table.credit-table tbody td:nth-child(6),
+table.credit-table tbody td:nth-child(7),
+table.credit-table tbody td:nth-child(8),
+table.credit-table tbody td:nth-child(9) {
+  font-size: 11px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+table.credit-table tbody td:nth-child(8) {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Estado, cobrador y acciones compactos pero alineados */
+table.credit-table tbody td:nth-child(10) {
+  white-space: nowrap;
+}
+table.credit-table tbody td:nth-child(11) {
+  font-size: 11px;
+  white-space: nowrap;
+  color: #64748b;
+}
+table.credit-table tbody td:nth-child(12) {
+  white-space: nowrap;
+  font-size: 11px;
+}
+

@@ -191,7 +191,7 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
       {error && <p className="mb-2 text-xs text-rose-600">{error}</p>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-xs">
+        <table className="w-full text-left text-sm credit-table">
           <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2.5">Cliente</th>

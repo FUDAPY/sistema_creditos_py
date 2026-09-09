@@ -195,18 +195,39 @@ export default function LoanRowActions({
           {info && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div>}
           {error && <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
           <div className="space-y-3">
-            {cobroOptions.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => setPayType(o.value)}
-                className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                  payType === o.value ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'
-                }`}
-              >
-                <p className="text-sm font-semibold text-slate-800">{o.label}</p>
-                <p className="text-xs text-slate-500">{o.hint}</p>
-              </button>
-            ))}
+            <fieldset className="rounded-xl border border-slate-200 p-3">
+              <legend className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                Tipo de cobro
+              </legend>
+              <div className="grid gap-1.5">
+                {cobroOptions.map((o) => (
+                  <label
+                    key={o.value}
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition ${
+                      payType === o.value ? 'bg-teal-50 ring-1 ring-inset ring-teal-500' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payType"
+                      value={o.value}
+                      checked={payType === o.value}
+                      onChange={() => setPayType(o.value)}
+                      className="mt-0.5 h-4 w-4 accent-teal-600"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
+                      <span className="block text-xs leading-snug text-slate-500">{o.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {isNoInterestType && (
+                <p className="mt-2 text-[11px] text-teal-700">
+                  Este tipo de crédito no genera intereses ni mora: el cobro se imputa solo a capital.
+                </p>
+              )}
+            </fieldset>
             <div>
               <label className={labelCls}>Monto</label>
               <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className={inputCls} />
