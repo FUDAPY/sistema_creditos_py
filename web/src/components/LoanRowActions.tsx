@@ -12,6 +12,10 @@ export interface LoanLite {
   interestRate?: number;
   totalAmount?: number;
   currentBalance?: number;
+  principalBalance?: number;
+  interestDue?: number;
+  lateFeeDue?: number;
+  totalDue?: number;
   paidAmount?: number;
   status?: string;
   collectorId?: string;
@@ -51,6 +55,9 @@ export default function LoanRowActions({
     { value: 'INTEREST', label: 'Cobrar interés', hint: 'Impacta únicamente en el saldo de interés/mora.' },
   ];
   const cobroOptions = isNoInterestType ? payOptions.filter((o) => o.value === 'CAPITAL') : payOptions;
+
+  // Saldo = Capital pendiente + Interés + Mora (el backend entrega totalDue ya calculado).
+  const saldoActual = loan.totalDue ?? Math.max(0, (loan.currentBalance || 0) + (loan.interestDue || 0) + (loan.lateFeeDue || 0));
 
   const isAdmin = role === 'ADMIN';
   const [mode, setMode] = useState<'none' | 'admin' | 'cobro'>('none');
@@ -184,7 +191,7 @@ export default function LoanRowActions({
       </div>
 
       {mode === 'cobro' && (
-        <Modal title="Registrar cobro" subtitle={`${loan.clientName || ''} · saldo ${fmt(loan.currentBalance)}`} onClose={() => setMode('none')}>
+        <Modal title="Registrar cobro" subtitle={`${loan.clientName || ''} · saldo ${fmt(saldoActual)}`} onClose={() => setMode('none')}>
           {info && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div>}
           {error && <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
           <div className="space-y-3">
@@ -207,11 +214,11 @@ export default function LoanRowActions({
             {(() => {
               const value = Number(amount);
               if (!Number.isFinite(value) || value <= 0) return null;
-              const nuevo = Math.max(0, (loan.currentBalance || 0) - value);
+              const nuevo = Math.max(0, saldoActual - value);
               return (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
                   <span className="font-medium text-slate-800">Saldo actual</span>{' '}
-                  <span className="tabular-nums">{fmt(loan.currentBalance)}</span>
+                  <span className="tabular-nums">{fmt(saldoActual)}</span>
                   <span className="mx-1 text-slate-400">−</span>
                   <span className="font-medium text-rose-600 tabular-nums">{fmt(value)}</span>
                   <span className="mx-1 text-slate-400">=</span>
@@ -246,7 +253,7 @@ export default function LoanRowActions({
               </div>
               <div className="rounded-xl bg-slate-50 px-2 py-2">
                 <p className="text-xs text-slate-400">Saldo</p>
-                <p className="font-bold text-rose-600">{fmt(loan.currentBalance)}</p>
+                <p className="font-bold text-rose-600">{fmt(saldoActual)}</p>
               </div>
             </div>
 

@@ -17,6 +17,13 @@ export interface LoanRow {
   totalAmount?: number;
   paidAmount?: number;
   currentBalance?: number;
+  principalBalance?: number;
+  interestDue?: number;
+  lateFeeDue?: number;
+  totalDue?: number;
+  daysLate?: number;
+  accruedInterestBalance?: number;
+  accruedLateFeeBalance?: number;
   status?: string;
   approvalStatus?: string;
   collectorName?: string;
@@ -48,6 +55,7 @@ const moraOf = (l: LoanRow) => {
   const lateDays = Math.max(0, Math.floor((startUtcDay(Date.now()) - startUtcDay(due)) / DAY));
   return Math.max(0, lateDays - MORA_GRACE_DAYS);
 };
+const isNoInterestLoan = (l: LoanRow) => ['PRESTACION_SERVICIOS', 'ALQUILER_INMUEBLE'].includes(l.loanType || '');
 
 export interface CatRow {
   key: string;
@@ -99,7 +107,12 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
     () =>
       loans.map((l) => {
         const cat = categoryOf(l);
-        return { ...l, mora: moraOf(l), tipoLabel: TYPE_LABEL[l.loanType || ''] || l.loanType || '-', cat };
+        const noInterest = isNoInterestLoan(l);
+        const interest = noInterest ? 0 : Number(l.interestDue ?? l.accruedInterestBalance ?? 0);
+        const lateFee = noInterest ? 0 : Number(l.lateFeeDue ?? l.accruedLateFeeBalance ?? 0);
+        const principalPend = Math.max(0, Number(l.principalBalance ?? l.currentBalance ?? 0));
+        const due = Number(l.totalDue ?? principalPend + interest + lateFee);
+        return { ...l, mora: moraOf(l), moraDias: l.daysLate ?? moraOf(l), interest, lateFee, principalPend, due, tipoLabel: TYPE_LABEL[l.loanType || ''] || l.loanType || '-', cat };
       }),
     [loans],
   );
@@ -186,6 +199,7 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
               <th className="px-3 py-2.5">Tipo</th>
               <th className="px-3 py-2.5 text-right">Capital</th>
               <th className="px-3 py-2.5">Vence</th>
+              <th className="px-3 py-2.5 text-right">Interés</th>
               <th className="px-3 py-2.5 text-right">Mora</th>
               <th className="px-3 py-2.5 text-right">Saldo</th>
               <th className="px-3 py-2.5 text-right">Total abonado</th>
@@ -216,14 +230,17 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{r.tipoLabel}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right text-slate-700">{fmt(r.principal)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmtDate(r.expiresAt)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-slate-700">{fmt(r.interest)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {r.mora > 0 ? (
-                    <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">{r.mora}d</span>
+                  {r.lateFee > 0 || r.mora > 0 ? (
+                    <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
+                      Gs. {fmt(r.lateFee)} · {r.mora}d
+                    </span>
                   ) : (
-                    <span className="text-[10px] text-emerald-600">0</span>
+                    <span className="text-[10px] text-emerald-600">Gs. 0 · 0d</span>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-800">{fmt(r.currentBalance)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-800">{fmt(r.due)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
                   {r.paidAmount ? (
                     <button
@@ -255,7 +272,7 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
             ))}
             {shown.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={12} className="px-4 py-8 text-center text-slate-400">
                   Sin créditos para los filtros aplicados
                 </td>
               </tr>

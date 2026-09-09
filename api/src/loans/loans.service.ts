@@ -12,6 +12,7 @@ import {
   loanTypeStartsFrozen,
   normalizePrincipalBalance,
   accrueLoanState,
+  calculateDaysLate,
 } from './loan.utils';
 import type {
   CreateLoanDto,
@@ -101,6 +102,40 @@ export class LoansService {
     }
     for (const row of publicRows) {
       if (!row.clientId || !String(row.clientName || '').trim()) row.clientMissing = true;
+    }
+
+    // Saldos calculados (tiempo real): Saldo = Capital + Interés + Mora (− abonos ya aplicados
+    // a capital/interest). El motor existente (accrueLoanState) expone esos componentes.
+    const noInterestTypes = new Set(['ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS']);
+    for (const row of publicRows) {
+      const status = String(row.status || '');
+      const approval = String(row.approvalStatus || '');
+      const loanType = String(row.loanType || '');
+      const noInterest = noInterestTypes.has(loanType);
+      const liveActive = status === 'ACTIVE' && approval === 'APPROVED';
+
+      if (liveActive) {
+        const accrued = accrueLoanState(row as never);
+        row.principalBalance = Math.round(accrued.principalBalance);
+        row.interestDue = Math.round(noInterest ? 0 : accrued.accruedInterestBalance);
+        row.lateFeeDue = Math.round(noInterest ? 0 : accrued.accruedLateFeeBalance);
+        row.totalDue = Math.round(accrued.principalBalance + (row.interestDue as number) + (row.lateFeeDue as number));
+      } else {
+        const persistedInterest = Number(row.accruedInterestBalance || 0);
+        const persistedLateFee = Number(row.accruedLateFeeBalance || 0);
+        const principalPend = Math.max(0, Number(row.currentBalance || 0));
+        row.principalBalance = principalPend;
+        row.interestDue = noInterest ? 0 : Math.round(persistedInterest);
+        row.lateFeeDue = noInterest ? 0 : Math.round(persistedLateFee);
+        row.totalDue = Math.round(principalPend + (row.interestDue as number) + (row.lateFeeDue as number));
+      }
+      const daysLate = calculateDaysLate({
+        status: row.status as never,
+        approvalStatus: row.approvalStatus as never,
+        expiresAt: Number(row.expiresAt || 0) || undefined,
+        nextDueDate: Number(row.nextDueDate || 0) || undefined,
+      });
+      row.daysLate = daysLate;
     }
   }
 

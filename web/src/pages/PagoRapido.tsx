@@ -10,6 +10,7 @@ interface LoanRow {
   currentBalance: number;
   totalAmount: number;
   principal: number;
+  totalDue?: number;
   status?: string;
   approvalStatus?: string;
 }
@@ -106,7 +107,7 @@ export default function PagoRapido() {
               <option value="">Seleccionar…</option>
               {candidates.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.clientName} · {l.clientDocumentId} · Gs. {fmt(l.currentBalance || 0)}
+                  {l.clientName} · {l.clientDocumentId} · Gs. {fmt((l.totalDue ?? l.currentBalance) || 0)}
                 </option>
               ))}
             </select>
@@ -114,7 +115,7 @@ export default function PagoRapido() {
 
           {selected && (
             <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Saldo actual: <b>Gs. {fmt(selected.currentBalance || 0)}</b> · Capital: Gs.{' '}
+              Saldo actual: <b>Gs. {fmt((selected.totalDue ?? selected.currentBalance) || 0)}</b> · Capital: Gs.{' '}
               {fmt(selected.principal || 0)}
             </div>
           )}

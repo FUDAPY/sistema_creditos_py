@@ -181,3 +181,31 @@ export async function fetchJuridicoCreditos(uri: string, dbName: string): Promis
     await conn.close();
   }
 }
+
+/**
+ * Prueba varias URIs separadas por coma en orden (ej. interna de Dokploy + pública).
+ * Recién falla si todas las conexiones fallan, con un mensaje accionable.
+ */
+export async function fetchJuridicoCreditosWithFallback(
+  uriCsv: string,
+  dbName: string,
+): Promise<JuridicoCreditoView[]> {
+  const uris = uriCsv
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (uris.length === 0) throw new Error('No se configuró ninguna URI para el sistema jurídico.');
+
+  const errors: string[] = [];
+  for (const singleUri of uris) {
+    try {
+      return await fetchJuridicoCreditos(singleUri, dbName);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+  throw new Error(
+    `No se pudo conectar con la base del sistema jurídico (${uris.length} URI(s) probadas). ` +
+      `Verificá la red Docker del VPS y la config INTEGRATION_JURIDICO_URL. Último error: ${errors[errors.length - 1]}`,
+  );
+}

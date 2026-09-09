@@ -77,6 +77,9 @@ El adaptador lee la MongoDB del sistema juridico (colecciones `clientes`, `exped
    docker network connect <red-del-proyecto-lin-group-central> <contenedor-api-creditos>
    ```
    Alternativa: usar la IP publica con el puerto publicado del Mongo juridico.
+   En `INTEGRATION_JURIDICO_URL` se admiten VARIAS URIs separadas por coma
+   (interna + publica): el conector prueba en orden y solo falla si ninguna conecta,
+   respondiendo 502 con el motivo (ya no 500 generico).
    > Seguridad: no publicar el Mongo juridico a internet mas tiempo del necesario;
    > restringir por firewall o cerrarlo y rotar credenciales al terminar las pruebas.
 

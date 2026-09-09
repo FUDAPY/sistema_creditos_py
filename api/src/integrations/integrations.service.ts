@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, BadGatewayException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   IntegrationStatus,
@@ -6,7 +6,7 @@ import type {
   RemoteCredit,
 } from './integrations.types';
 import {
-  fetchJuridicoCreditos,
+  fetchJuridicoCreditosWithFallback,
   type JuridicoCreditoView,
 } from './juridico.connector';
 import { fetchPosCreditos } from './pos.connector';
@@ -99,7 +99,15 @@ export class IntegrationsService {
         'Integracion juridico sin configurar: defina INTEGRATION_JURIDICO_URL (URI Mongo) e INTEGRATION_JURIDICO_DB.',
       );
     }
-    return fetchJuridicoCreditos(uri, db);
+    try {
+      return await fetchJuridicoCreditosWithFallback(uri, db);
+    } catch (err) {
+      throw new BadGatewayException(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo conectar con la base del sistema jurídico (revise red/credenciales).',
+      );
+    }
   }
 
   /**
