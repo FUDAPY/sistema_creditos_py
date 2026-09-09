@@ -25,10 +25,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute />}>
-        {/* Dashboard conserva su layout propio rediseñado */}
-        <Route path="/" element={<Dashboard />} />
-        {/* Resto de la app bajo la sidebar fija con RBAC */}
+        {/* Toda la app usa la MISMA barra lateral fija con RBAC (incl. Dashboard). */}
         <Route element={<SidebarLayout />}>
+          <Route path="/" element={<Dashboard />} />
           <Route path="/loans" element={<LoansList />} />
           <Route path="/loans/new" element={<LoanForm />} />
           <Route path="/pagares" element={<Pagares />} />

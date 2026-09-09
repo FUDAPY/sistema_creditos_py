@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import AreaChart, { type SeriesPoint } from '../components/AreaChart';
@@ -26,7 +25,7 @@ const dayKey = (t: number) => {
 };
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [approvedPayments, setApprovedPayments] = useState<PaymentRow[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentRow[]>([]);
@@ -123,77 +122,32 @@ export default function Dashboard() {
 
   const monthLabel = new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(new Date());
 
-  const navItem = (to: string, label: string, end = false) => (
-    <NavLink
-      to={to}
-      end={end}
-      className={({ isActive }) =>
-        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-          isActive ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-        }`
-      }
-    >
-      <span className="inline-block h-2 w-2 rounded-full bg-current" />
-      {label}
-    </NavLink>
-  );
-
   return (
-    <div className="flex min-h-screen bg-slate-100 text-slate-800">
-      {/* Barra lateral */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-5 md:flex">
-        <div className="mb-8">
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-            Sys<span className="text-teal-600">Creditos</span>
-          </h1>
-          <p className="text-xs text-slate-400">LIN GROUP S.A.</p>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1.5">
-          {navItem('/', 'Dashboard', true)}
-          {navItem('/loans', 'Créditos')}
-          {navItem('/loans/new', 'Nuevo crédito')}
-          {user?.role === 'ADMIN' && navItem('/pagares', 'Pagarés')}
-          {navItem('/portfolio', 'Cartera')}
-        </nav>
-        <div className="border-t border-slate-200 pt-4">
-          <p className="text-sm font-medium text-slate-700">{user?.name || 'Usuario'}</p>
-          <p className="mb-2 text-xs text-slate-400">
-            {user?.role === 'ADMIN' ? 'Administrador' : 'Cobrador'}
-          </p>
-          <button
-            onClick={logout}
-            className="text-sm font-medium text-rose-600 transition hover:text-rose-700"
-          >
-            Cerrar sesión
-          </button>
-        </div>
-      </aside>
-
-      {/* Contenido */}
-      <main className="flex-1">
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-6 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Resumen del Día</h2>
-              <p className="text-sm capitalize text-slate-500">{monthLabel}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50 px-3 py-1.5 text-xs text-teal-700">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-500" />
-                </span>
-                Datos sincronizados hace {syncSeconds} s
-              </div>
-              <button
-                onClick={() => void load()}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-600"
-              >
-                Sincronizar
-              </button>
-            </div>
+    <>
+      {/* Header propio del Dashboard (la barra lateral ahora la aporta SidebarLayout). */}
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-6 py-4 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Resumen del Día</h2>
+            <p className="text-sm capitalize text-slate-500">{monthLabel}</p>
           </div>
-        </header>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50 px-3 py-1.5 text-xs text-teal-700">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-500" />
+              </span>
+              Datos sincronizados hace {syncSeconds} s
+            </div>
+            <button
+              onClick={() => void load()}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-teal-300 hover:text-teal-600"
+            >
+              Sincronizar
+            </button>
+          </div>
+        </div>
+      </header>
 
         <div className="mx-auto max-w-7xl space-y-6 p-6">
           {error && (
@@ -256,8 +210,7 @@ export default function Dashboard() {
             )}
           </section>
         </div>
-      </main>
-    </div>
+    </>
   );
 }
 
