@@ -1,6 +1,10 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { IntegrationStatus, IntegrationSystem } from './integrations.types';
+import {
+  fetchJuridicoCreditos,
+  type JuridicoCreditoView,
+} from './juridico.connector';
 
 /**
  * Gateway de integraciones con sistemas externos (POS, Juridico, Financiero).
@@ -38,10 +42,12 @@ export class IntegrationsService {
         system: 'juridico',
         direction: 'inbound',
         enabled: juridicoEnabled,
-        configured: this.hasCredentials(['INTEGRATION_JURIDICO_URL']),
+        configured:
+          this.hasCredentials(['INTEGRATION_JURIDICO_URL']) &&
+          Boolean(this.config.get<string>('INTEGRATION_JURIDICO_DB', '')),
         detail: juridicoEnabled
-          ? 'Importacion de creditos juridicos habilitada (reconexion pendiente de adaptador).'
-          : 'Deshabilitada. El sistema juridico (en VPS) se conectara en una fase posterior.',
+          ? 'Importacion de creditos juridicos habilitada (lee MongoDB del sistema lin-group-central).'
+          : 'Deshabilitada. El sistema juridico (lin-group-central) se conecta leyendo su MongoDB.',
       },
       {
         system: 'financiero',
@@ -56,15 +62,39 @@ export class IntegrationsService {
   }
 
   /** Ejecuta la sincronizacion de un sistema. Mientras este deshabilitado, responde 503. */
-  async runSync(system: IntegrationSystem): Promise<{ system: IntegrationSystem; ran: boolean }> {
+  async runSync(
+    system: IntegrationSystem,
+  ): Promise<{ system: IntegrationSystem; ran: boolean; imported?: number }> {
     const status = this.statuses().find((item) => item.system === system);
     if (!status?.enabled) {
       throw new ServiceUnavailableException(
         `Integracion "${system}" deshabilitada. Active ${this.envKeyOf(system)} para reconectarla.`,
       );
     }
+    if (system === 'juridico') {
+      const rows = await this.juridicoCreditos();
+      return { system, ran: true, imported: rows.length };
+    }
     // TODO(fase de reconexion): implementar el adaptador especifico (lectura/escritura HTTP).
     return { system, ran: false };
+  }
+
+  /** Devuelve clientes con creditos juridicos (lectura SOLO-lectura de la MongoDB remota). */
+  async juridicoCreditos(): Promise<JuridicoCreditoView[]> {
+    const status = this.statuses().find((item) => item.system === 'juridico');
+    if (!status?.enabled) {
+      throw new ServiceUnavailableException(
+        'Integracion juridico deshabilitada. Active INTEGRATION_JURIDICO_ENABLED=true.',
+      );
+    }
+    const uri = this.config.get<string>('INTEGRATION_JURIDICO_URL', '');
+    const db = this.config.get<string>('INTEGRATION_JURIDICO_DB', '');
+    if (!uri || !db) {
+      throw new ServiceUnavailableException(
+        'Integracion juridico sin configurar: defina INTEGRATION_JURIDICO_URL (URI Mongo) e INTEGRATION_JURIDICO_DB.',
+      );
+    }
+    return fetchJuridicoCreditos(uri, db);
   }
 
   private envKeyOf(system: IntegrationSystem): string {

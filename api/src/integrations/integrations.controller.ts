@@ -20,7 +20,7 @@ export class IntegrationsController {
     @Param('system') system: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @Body() _body: Record<string, unknown>,
-  ): Promise<{ system: IntegrationSystem; ran: boolean }> {
+  ): Promise<{ system: IntegrationSystem; ran: boolean; imported?: number }> {
     const normalized = system as IntegrationSystem;
     if (!VALID_SYSTEMS.includes(normalized)) {
       throw new Error('Sistema de integracion no valido.');

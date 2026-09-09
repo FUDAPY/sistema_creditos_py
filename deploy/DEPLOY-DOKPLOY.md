@@ -39,10 +39,17 @@ JWT_EXPIRES_IN=8h
 CORS_ORIGIN=https://creditos.lingroupsapy.com
 SEED_ADMIN_EMAIL=admin@lingroup.com
 SEED_ADMIN_PASSWORD=<password-admin-inicial>
-# Integraciones externas: deshabilitadas por ahora (Fase 4)
+# Integraciones externas
 INTEGRATION_POS_ENABLED=false
-INTEGRATION_JURIDICO_ENABLED=false
+INTEGRATION_POS_URL=
+# Juridico (lin-group-central): lectura SOLO-LECTURA de su MongoDB.
+# Preferir hostname interno si las redes Docker del VPS se comparten; en su
+# defecto usar la IP publica con el puerto publicado del Mongo juridico.
+INTEGRATION_JURIDICO_ENABLED=true
+INTEGRATION_JURIDICO_URL=mongodb://<user>:<pass>@lin-group-lin-group-central-ktwwt2:27017/?authSource=admin
+INTEGRATION_JURIDICO_DB=sysjuridico
 INTEGRATION_FINANCIERO_ENABLED=false
+INTEGRATION_FINANCIERO_URL=
 ```
 Health check: `GET /api/v1/health` -> `{ status: "ok", mongo: "up" }`.
 
@@ -54,8 +61,25 @@ Dominio sugerido mientras no exista el frontend: `api.creditos.lingroupsapy.com`
 al VPS). Cuando el frontend este en `https://creditos.lingroupsapy.com`, ese dominio va en
 `CORS_ORIGIN`.
 
-## 4) Reconexion posterior (Fase 6, opcional)
-1. `GET /api/v1/integrations/status` muestra el estado actual (todo `disabled`).
-2. Para reconectar POS/Juridico/Financiero se activa cada sistema en el environment
-   (`INTEGRATION_*_ENABLED=true` + URL/credenciales) y se completa el adaptador en
-   `api/src/integrations/`.
+## 4) Integracion juridico (lin-group-central)
+El adaptador lee la MongoDB del sistema juridico (colecciones `clientes`, `expedientes`,
+`creditos`) y devuelve los clientes con creditos unidos por referencia/nombre.
+
+1. `GET /api/v1/integrations/status` muestra el estado de cada sistema.
+2. Vista en el frontend: **Empresas -> Juridico** llama a
+   `GET /api/v1/integrations/juridico/creditos` (requiere login; solo lectura).
+3. Para probar la sincronizacion manual (count de importados):
+   `POST /api/v1/integrations/juridico/sync` (ADMIN).
+4. Redes: si el contenedor de la API no alcanza el hostname interno del Mongo juridico
+   (`lin-group-lin-group-central-ktwwt2:27017`), conectar la red Docker desde el VPS:
+   ```bash
+   docker network connect <red-del-proyecto-lin-group-central> <contenedor-api-creditos>
+   ```
+   Alternativa: usar la IP publica con el puerto publicado del Mongo juridico.
+   > Seguridad: no publicar el Mongo juridico a internet mas tiempo del necesario;
+   > restringir por firewall o cerrarlo y rotar credenciales al terminar las pruebas.
+
+## 5) Reconexion posterior (Fase 6, opcional)
+Para reconectar POS/Financiero se activa cada sistema en el environment
+(`INTEGRATION_*_ENABLED=true` + URL/credenciales) y se completa su adaptador en
+`api/src/integrations/`.
