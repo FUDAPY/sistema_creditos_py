@@ -7,6 +7,7 @@ import Portfolio from './pages/Portfolio';
 import LoansList from './pages/LoansList';
 import LoanForm from './pages/LoanForm';
 import Pagares from './pages/Pagares';
+import CarteraActiva from './pages/CarteraActiva';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -28,7 +29,7 @@ export default function App() {
           <Route path="/calendario" element={<Placeholder title="Calendario" description="Vencimientos de créditos, alquileres y cobros programados." />} />
 
           {/* COBROS / EMPRESAS */}
-          <Route path="/cartera" element={<Placeholder title="Cartera Activa" description="Todos los créditos ordenados por mora (mayor a menor)." />} />
+          <Route path="/cartera" element={<CarteraActiva />} />
           <Route path="/empresas/creditos" element={<Placeholder title="Empresas · Créditos" />} />
           <Route path="/empresas/alquileres" element={<Placeholder title="Empresas · Alquileres" />} />
           <Route path="/empresas/empenos" element={<Placeholder title="Empresas · Empeños" />} />
