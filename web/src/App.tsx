@@ -12,6 +12,10 @@ import PagoRapido from './pages/PagoRapido';
 import AprobarRendicion from './pages/AprobarRendicion';
 import Calendario from './pages/Calendario';
 import Recaudo from './pages/Recaudo';
+import AprobarCreditos from './pages/AprobarCreditos';
+import ClasificacionCartera from './pages/ClasificacionCartera';
+import NuevoCliente from './pages/NuevoCliente';
+import GestionUsuarios from './pages/GestionUsuarios';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -43,16 +47,16 @@ export default function App() {
           <Route path="/empresas/juridico" element={<Placeholder title="Empresas · Jurídico" />} />
 
           {/* CLIENTES */}
-          <Route path="/clientes/nuevo" element={<Placeholder title="Nuevo Cliente" description="Formulario de registro (Admin y Cobrador)." />} />
-          <Route path="/cartera/clasificacion" element={<Placeholder title="Clasificación de Cartera" description="Bueno · Inforconf · Prejudicial · Judicial." />} />
+          <Route path="/clientes/nuevo" element={<NuevoCliente />} />
+          <Route path="/cartera/clasificacion" element={<ClasificacionCartera />} />
 
           {/* ADMINISTRACIÓN (solo ADMIN por RBAC) */}
-          <Route path="/admin/aprobar-creditos" element={<Placeholder title="Aprobar Créditos" description="Bandeja de autorización de créditos pendientes." />} />
+          <Route path="/admin/aprobar-creditos" element={<AprobarCreditos />} />
           <Route path="/admin/aprobar-rendicion" element={<AprobarRendicion />} />
           <Route path="/admin/recaudo" element={<Recaudo />} />
 
           {/* USUARIOS */}
-          <Route path="/admin/usuarios" element={<Placeholder title="Gestión de Usuarios" description="Crear, resetear contraseña y revocar acceso (sin borrar historial)." />} />
+          <Route path="/admin/usuarios" element={<GestionUsuarios />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
