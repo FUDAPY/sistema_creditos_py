@@ -1,10 +1,15 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { IntegrationStatus, IntegrationSystem } from './integrations.types';
+import type {
+  IntegrationStatus,
+  IntegrationSystem,
+  RemoteCredit,
+} from './integrations.types';
 import {
   fetchJuridicoCreditos,
   type JuridicoCreditoView,
 } from './juridico.connector';
+import { fetchPosCreditos } from './pos.connector';
 
 /**
  * Gateway de integraciones con sistemas externos (POS, Juridico, Financiero).
@@ -95,6 +100,51 @@ export class IntegrationsService {
       );
     }
     return fetchJuridicoCreditos(uri, db);
+  }
+
+  /**
+   * Devuelve los creditos externos NORMALIZADOS (RemoteCredit) de un sistema
+   * inbound. Contrato común usado por la sincronización local (external-credits).
+   */
+  async remoteCredits(system: IntegrationSystem): Promise<RemoteCredit[]> {
+    if (system === 'juridico') {
+      const rows = await this.juridicoCreditos();
+      return rows.map((r): RemoteCredit => {
+        const detalle = [r.juzgado, r.fuero].filter(Boolean).join(' · ') || undefined;
+        return {
+          externalId: r.id,
+          sistema: 'juridico',
+          clienteNombre: r.clienteNombre,
+          cedula: r.cedula,
+          telefono: r.telefono,
+          direccion: r.direccion,
+          referencia: r.caratula || r.descripcion || undefined,
+          referenciaDetalle: detalle,
+          concepto: r.concepto,
+          montoTotal: r.montoTotal,
+          saldoPendiente: r.saldoPendiente,
+          estado: r.estadoExpediente ?? (r.saldoPendiente > 0 ? 'activo' : 'pagado'),
+          updatedAt: r.updatedAt,
+        };
+      });
+    }
+    if (system === 'pos') {
+      const status = this.statuses().find((item) => item.system === 'pos');
+      if (!status?.enabled) {
+        throw new ServiceUnavailableException(
+          'Integracion POS deshabilitada. Active INTEGRATION_POS_ENABLED=true.',
+        );
+      }
+      const url = this.config.get<string>('INTEGRATION_POS_URL', '');
+      if (!url) {
+        throw new ServiceUnavailableException(
+          'Integracion POS sin configurar: defina INTEGRATION_POS_URL (URL base de su API).',
+        );
+      }
+      const token = this.config.get<string>('INTEGRATION_POS_TOKEN', '') || undefined;
+      return fetchPosCreditos(url, token);
+    }
+    throw new ServiceUnavailableException(`El sistema "${system}" no exporta creditos importables.`);
   }
 
   private envKeyOf(system: IntegrationSystem): string {

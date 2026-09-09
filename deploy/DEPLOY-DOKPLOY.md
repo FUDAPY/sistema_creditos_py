@@ -66,10 +66,11 @@ El adaptador lee la MongoDB del sistema juridico (colecciones `clientes`, `exped
 `creditos`) y devuelve los clientes con creditos unidos por referencia/nombre.
 
 1. `GET /api/v1/integrations/status` muestra el estado de cada sistema.
-2. Vista en el frontend: **Empresas -> Juridico** llama a
-   `GET /api/v1/integrations/juridico/creditos` (requiere login; solo lectura).
-3. Para probar la sincronizacion manual (count de importados):
-   `POST /api/v1/integrations/juridico/sync` (ADMIN).
+2. Sincronizacion local (coleccion `externalCredits`): se ejecuta al arrancar y cada
+   `EXTERNAL_CREDIT_SYNC_INTERVAL_MS` (default 6 h). Manual (ADMIN):
+   `POST /api/v1/external-credits/juridico/sync`.
+3. Vista en el frontend: **Empresas -> Juridico** lista `GET /api/v1/external-credits?system=juridico`
+   (tabla local con fecha de ultimo sync + boton "Sincronizar ahora" para ADMIN).
 4. Redes: si el contenedor de la API no alcanza el hostname interno del Mongo juridico
    (`lin-group-lin-group-central-ktwwt2:27017`), conectar la red Docker desde el VPS:
    ```bash
@@ -79,7 +80,20 @@ El adaptador lee la MongoDB del sistema juridico (colecciones `clientes`, `exped
    > Seguridad: no publicar el Mongo juridico a internet mas tiempo del necesario;
    > restringir por firewall o cerrarlo y rotar credenciales al terminar las pruebas.
 
-## 5) Reconexion posterior (Fase 6, opcional)
-Para reconectar POS/Financiero se activa cada sistema en el environment
-(`INTEGRATION_*_ENABLED=true` + URL/credenciales) y se completa su adaptador en
-`api/src/integrations/`.
+## 5) Integracion POS (mismo patron, listo para conectar)
+Cuando el sistema POS exponga su API, solo hay que completar el environment:
+```env
+INTEGRATION_POS_ENABLED=true
+INTEGRATION_POS_URL=https://<dominio-o-hostname-del-pos>
+INTEGRATION_POS_TOKEN=<token-opcional>
+```
+Contrato del adaptador (`api/src/integrations/pos.connector.ts`):
+`GET {INTEGRATION_POS_URL}/creditos` -> JSON (array, o `{ data | creditos | items | results }`).
+Cada registro se normaliza con alias flexibles (id/_id/operacionId, cliente/nombreCompleto,
+montoTotal/monto, saldoPendiente/saldo, etc.). La sincronizacion usa la misma coleccion
+`externalCredits` con `sistema=pos` y la vista es **Empresas -> POS**.
+Los sistemas no habilitados simplemente se omiten en el auto-sync.
+
+## 6) Reconexion posterior (Fase 6, opcional)
+Para Financiero (outbound) se activa su env (`INTEGRATION_FINANCIERO_ENABLED=true` + URL)
+y se completa su adaptador en `api/src/integrations/`.

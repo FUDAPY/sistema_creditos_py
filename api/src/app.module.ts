@@ -13,6 +13,7 @@ import { SlotMachinesModule } from './slot-machines/slot-machines.module';
 import { SpecialModule } from './special/special.module';
 import { ReportsModule } from './reports/reports.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ExternalCreditsModule } from './external-credits/external-credits.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -39,6 +40,7 @@ import { HealthController } from './health.controller';
     SpecialModule,
     ReportsModule,
     IntegrationsModule,
+    ExternalCreditsModule,
   ],
   controllers: [HealthController],
 })
