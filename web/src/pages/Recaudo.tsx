@@ -15,7 +15,7 @@ interface PaymentRow {
   amount: number;
 }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 const DAY = 86400000;
 const startUtcDay = (t: number) => {
   const d = new Date(t);

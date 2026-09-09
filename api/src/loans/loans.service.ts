@@ -77,6 +77,33 @@ export class LoansService {
     return { ...raw, id: String(raw._id ?? doc.id ?? '') };
   }
 
+  /** Hidrata clientName/clientDocumentId de creditos huérfanos y marca clientMissing. */
+  private async attachClientMeta(publicRows: Array<Record<string, unknown>>, companyId: string): Promise<void> {
+    const needers = publicRows.filter((r) => Boolean(r.clientId) && !String(r.clientName || '').trim());
+    if (needers.length > 0) {
+      const ids = needers.map((r) => String(r.clientId));
+      const clients = await this.clientModel
+        .find({ companyId, _id: { $in: ids } })
+        .exec();
+      const byId = new Map(clients.map((c) => [String(c._id), c]));
+      for (const row of needers) {
+        const client = byId.get(String(row.clientId));
+        if (client?.fullName) {
+          row.clientName = client.fullName;
+          row.clientDocumentId = client.documentId || '';
+          row.clientPhone = client.phone || '';
+          // Reparación persistente del nombre denormalizado (evita re-consultas).
+          await this.loanModel.updateOne({ _id: String(row.id) }, { $set: { clientName: client.fullName } }).exec();
+        } else {
+          row.clientMissing = true;
+        }
+      }
+    }
+    for (const row of publicRows) {
+      if (!row.clientId || !String(row.clientName || '').trim()) row.clientMissing = true;
+    }
+  }
+
   async list(
     companyId: string,
     filters: { status?: string; collectorId?: string; approvalStatus?: string; clientId?: string } = {},
@@ -87,12 +114,17 @@ export class LoansService {
     if (filters.collectorId) query.collectorId = filters.collectorId;
     if (filters.clientId) query.clientId = filters.clientId;
     const docs = await this.loanModel.find(query).sort({ grantedAt: -1 }).exec();
-    return docs.map((d) => this.toPublic(d));
+    const publicRows = docs.map((d) => this.toPublic(d));
+    await this.attachClientMeta(publicRows, companyId);
+    return publicRows;
   }
 
   async getById(companyId: string, loanId: string): Promise<Record<string, unknown> | null> {
     const doc = await this.loanModel.findOne({ _id: loanId, companyId }).exec();
-    return doc ? this.toPublic(doc) : null;
+    if (!doc) return null;
+    const publicRow = this.toPublic(doc);
+    await this.attachClientMeta([publicRow], companyId);
+    return publicRow;
   }
 
   async create(
@@ -101,6 +133,13 @@ export class LoansService {
     actor: RequestUser,
   ): Promise<Record<string, unknown>> {
     const clientDoc = await this.clientModel.findOne({ _id: data.clientId, companyId }).exec();
+    // Integridad referencial obligatoria: ningun credito sin cliente vinculado.
+    if (!data.clientId || !String(data.clientId).trim()) {
+      throw new BadRequestException('El crédito requiere un cliente vinculado (clientId).');
+    }
+    if (!clientDoc) {
+      throw new NotFoundException('El cliente asociado no existe. No se puede registrar el crédito.');
+    }
     const now = Date.now();
     // Regla de interes por cuotas para creditos nuevos a plazos
     // (6=20%, 12=20%, 18=25%, 24=30%); default historico 20% para el resto.

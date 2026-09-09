@@ -14,7 +14,7 @@ interface LoanRow {
   approvalStatus?: string;
 }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 
 export default function PagoRapido() {
   const { user } = useAuth();
@@ -45,6 +45,12 @@ export default function PagoRapido() {
   }, [loans, search]);
 
   const selected = loans.find((l) => l.id === loanId);
+
+  // Prestación (congelado) y Alquiler (monto fijo): solo admiten cobro de capital.
+  const fixedCapitalOnly = Boolean(selected && ['PRESTACION_SERVICIOS', 'ALQUILER_INMUEBLE'].includes(selected.loanType || ''));
+  useEffect(() => {
+    if (fixedCapitalOnly) setType('CAPITAL');
+  }, [fixedCapitalOnly]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -118,21 +124,30 @@ export default function PagoRapido() {
               <label className="mb-1 block text-sm font-medium text-slate-700">Monto (Gs.)</label>
               <input
                 type="number"
-                step="0.01"
-                min={0.01}
+                step="1"
+                min={1}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Tipo de pago</label>
               <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                <option value="MIXED">Mixto</option>
-                <option value="CAPITAL">Capital</option>
-                <option value="INTEREST">Interés</option>
+                {fixedCapitalOnly ? (
+                  <option value="CAPITAL">Solo capital</option>
+                ) : (
+                  <>
+                    <option value="MIXED">Cobrar ambos</option>
+                    <option value="CAPITAL">Solo capital</option>
+                    <option value="INTEREST">Solo interés</option>
+                  </>
+                )}
               </select>
+              {fixedCapitalOnly && (
+                <p className="mt-1 text-xs text-teal-700">Este tipo de crédito no genera intereses: el cobro se imputa solo a capital.</p>
+              )}
             </div>
           </div>
 

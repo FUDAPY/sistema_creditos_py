@@ -26,7 +26,7 @@ interface Client {
 }
 interface LoanRow { id: string; loanType?: string; principal: number; currentBalance: number; totalAmount: number; status?: string; }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 const STATUS: Record<string, string> = { ACTIVE: 'Activo', FROZEN: 'Congelado', PAID: 'Pagado', ANULADO: 'Anulado' };
 
 export default function ClienteDetalle() {

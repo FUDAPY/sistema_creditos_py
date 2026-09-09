@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import PaymentsHistoryModal from './PaymentsHistoryModal';
+import { money } from '../lib/format';
 import { api } from '../lib/api';
 
 interface ClientRow {
@@ -26,7 +27,7 @@ interface ClientLoan {
   approvalStatus?: string;
 }
 
-const fmt = (v?: number) => (v ?? 0).toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v?: number) => money(v);
 const fmtDate = (t?: number) => (t ? new Intl.DateTimeFormat('es-PY').format(new Date(t)) : '-');
 const TYPE_LABEL: Record<string, string> = { PRESTAMO: 'Préstamo', EMPENO: 'Empeño', ALQUILER_INMUEBLE: 'Alquiler', PRESTACION_SERVICIOS: 'Prestación', CELULAR: 'Celular' };
 const STATUS_LABEL: Record<string, string> = { ACTIVE: 'Activo', FROZEN: 'Congelado', CONGELADO: 'Congelado', PAID: 'Pagado', ANULADO: 'Anulado' };

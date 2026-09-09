@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, apiPost } from '../lib/api';
 import CreditTable, { type LoanRow } from '../components/CreditTable';
+import { money } from '../lib/format';
 
 interface SiteRow { id: string; name?: string; locationName?: string; collectorName?: string; isActive?: boolean; }
 interface ExternalRow {
@@ -20,7 +21,7 @@ interface ExternalRow {
   syncedAt?: number;
 }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => money(v);
 const fmtDate = (t?: number) => (t ? new Intl.DateTimeFormat('es-PY').format(new Date(t)) : '-');
 
 const TITLES: Record<string, string> = { creditos: 'Créditos', alquileres: 'Alquileres', empenos: 'Empeños', prestacion: 'Prestación', tragamonedas: 'Tragamonedas', pos: 'POS', juridico: 'Jurídico' };

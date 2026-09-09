@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { api } from '../lib/api';
+import { money } from '../lib/format';
 
 interface PaymentRow {
   id: string;
@@ -15,7 +16,7 @@ interface PaymentRow {
   arrearsApplied?: number;
 }
 
-const fmt = (v?: number) => (v ?? 0).toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v?: number) => money(v);
 const fmtDate = (t?: number) =>
   t ? new Intl.DateTimeFormat('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(t)) : '-';
 

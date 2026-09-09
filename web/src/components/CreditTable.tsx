@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
+import { money } from '../lib/format';
 import Pagination from './Pagination';
 import LoanRowActions from './LoanRowActions';
 import PaymentsHistoryModal from './PaymentsHistoryModal';
@@ -20,6 +21,7 @@ export interface LoanRow {
   approvalStatus?: string;
   collectorName?: string;
   collectorId?: string;
+  clientMissing?: boolean;
   grantedAt?: number;
   expiresAt?: number;
   nextDueDate?: number;
@@ -29,7 +31,7 @@ export interface LoanRow {
 
 export const PAGE_SIZE = 25;
 
-const fmt = (v?: number) => (v ?? 0).toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v?: number) => money(v);
 const fmtDate = (t?: number) =>
   t ? new Intl.DateTimeFormat('es-PY', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(t)) : '-';
 
@@ -196,12 +198,18 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
             {shown.map((r) => (
               <tr key={r.id} className="border-t border-slate-100 align-middle hover:bg-slate-50">
                 <td className="px-3 py-2">
-                  <button
-                    onClick={() => setClientModal(r.clientId || '')}
-                    className="text-left font-medium text-slate-800 hover:text-teal-700 hover:underline"
-                  >
-                    {r.clientName || '-'}
-                  </button>
+                  {r.clientMissing ? (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-800" title={r.clientId ? `clientId: ${r.clientId}` : 'Sin clientId en el registro'}>
+                      ⚠ Cliente no asignado
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => r.clientId && setClientModal(r.clientId)}
+                      className="text-left font-medium text-slate-800 hover:text-teal-700 hover:underline"
+                    >
+                      {r.clientName || '-'}
+                    </button>
+                  )}
                   {r.clientDocumentId && <p className="text-[10px] text-slate-400">{r.clientDocumentId}</p>}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmtDate(r.grantedAt)}</td>

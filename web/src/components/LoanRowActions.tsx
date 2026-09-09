@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { api, apiPatch, apiPost } from '../lib/api';
+import { money } from '../lib/format';
 
 export interface LoanLite {
   id: string;
   clientId?: string;
   clientName?: string;
+  loanType?: string;
   principal: number;
   interestRate?: number;
   totalAmount?: number;
@@ -23,7 +25,7 @@ export interface LoanLite {
 
 interface CollectorRow { uid: string; name: string; role?: string; }
 
-const fmt = (v?: number) => (v ?? 0).toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v?: number) => money(v);
 const toDateInput = (t?: number) => (t ? new Date(t).toISOString().slice(0, 10) : '');
 const dateInputMs = (v: string) => (v ? new Date(`${v}T12:00:00`).getTime() : 0);
 const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm';
@@ -41,6 +43,15 @@ export default function LoanRowActions({
   reload: () => void;
   onShowHistory: () => void;
 }) {
+  // Prestación (congelado) y Alquiler (monto fijo): no generan intereses -> solo cobro de capital.
+  const isNoInterestType = loan.loanType === 'PRESTACION_SERVICIOS' || loan.loanType === 'ALQUILER_INMUEBLE';
+  const payOptions: Array<{ value: 'MIXED' | 'CAPITAL' | 'INTEREST'; label: string; hint: string }> = [
+    { value: 'MIXED', label: 'Cobrar ambos', hint: 'Impacta proporcionalmente en capital e interés (primero mora).' },
+    { value: 'CAPITAL', label: 'Cobrar capital', hint: 'Impacta únicamente en el saldo de capital.' },
+    { value: 'INTEREST', label: 'Cobrar interés', hint: 'Impacta únicamente en el saldo de interés/mora.' },
+  ];
+  const cobroOptions = isNoInterestType ? payOptions.filter((o) => o.value === 'CAPITAL') : payOptions;
+
   const isAdmin = role === 'ADMIN';
   const [mode, setMode] = useState<'none' | 'admin' | 'cobro'>('none');
   const [info, setInfo] = useState('');
@@ -71,6 +82,7 @@ export default function LoanRowActions({
     if (!mode || mode === 'none') return;
     setInfo('');
     setError('');
+    if (mode === 'cobro') setPayType(isNoInterestType ? 'CAPITAL' : 'MIXED');
   }, [mode]);
 
   useEffect(() => {
@@ -154,12 +166,6 @@ export default function LoanRowActions({
     setAnularReason('');
   });
 
-  const payOptions: Array<{ value: 'MIXED' | 'CAPITAL' | 'INTEREST'; label: string; hint: string }> = [
-    { value: 'MIXED', label: 'Cobrar ambos', hint: 'Impacta proporcionalmente en capital e interés (primero mora).' },
-    { value: 'CAPITAL', label: 'Cobrar capital', hint: 'Impacta únicamente en el saldo de capital.' },
-    { value: 'INTEREST', label: 'Cobrar interés', hint: 'Impacta únicamente en el saldo de interés/mora.' },
-  ];
-
   return (
     <>
       <div className="flex gap-1.5">
@@ -182,7 +188,7 @@ export default function LoanRowActions({
           {info && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div>}
           {error && <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
           <div className="space-y-3">
-            {payOptions.map((o) => (
+            {cobroOptions.map((o) => (
               <button
                 key={o.value}
                 onClick={() => setPayType(o.value)}

@@ -14,7 +14,7 @@ interface LoanRow {
   collectorName?: string;
 }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 const keyOf = (t: number) => {
   const d = new Date(t);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;

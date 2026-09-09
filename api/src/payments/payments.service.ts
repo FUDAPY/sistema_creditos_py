@@ -163,6 +163,15 @@ export class PaymentsService {
     }
     const now = Date.now();
     const paymentType = dto.paymentType || 'MIXED';
+    // Prestación (congelado, sin intereses) y Alquiler (monto fijo mensual):
+    // el cobro es UNICAMENTE capital (no admiten "ambos" ni "interés").
+    const loanTypeName = String((loan as unknown as { loanType?: string }).loanType || '');
+    const nonInterestTypes = ['ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS'];
+    if (nonInterestTypes.includes(loanTypeName) && paymentType !== 'CAPITAL') {
+      throw new BadRequestException(
+        'Este tipo de crédito no genera intereses: el cobro debe imputarse solo a capital (paymentType=CAPITAL).',
+      );
+    }
     const paidAt = dto.paidAt || now;
     const commissionRate = 0.07; // comision por recibo (misma base del sistema original)
 

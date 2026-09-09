@@ -12,7 +12,7 @@ interface PaymentRow {
   createdAt?: number;
 }
 
-const fmt = (v: number) => v.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 const fmtDate = (t?: number) =>
   t ? new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(t)) : '-';
 
