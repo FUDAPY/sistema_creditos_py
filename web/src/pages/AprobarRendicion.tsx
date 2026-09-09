@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, apiPost } from '../lib/api';
+import { printPaymentTicket, type TicketData } from '../lib/ticket';
 
 interface PaymentRow {
   id: string;
@@ -86,7 +87,10 @@ export default function AprobarRendicion() {
     try {
       if (approve) {
         await apiPost<{ success: boolean }>(`/payments/${id}/approve`);
-        setMsg('Pago aprobado. El saldo fue actualizado.');
+        // Dispara la impresión del ticket térmico con los montos definitivos.
+        const paid = await api<Record<string, unknown>>(`/payments/${id}`);
+        printPaymentTicket(paid as unknown as TicketData);
+        setMsg('Pago aprobado. El saldo fue actualizado y se imprimió el ticket.');
       } else {
         const reason = window.prompt('Motivo del rechazo/anulación:')?.trim() || '';
         if (!reason) return;

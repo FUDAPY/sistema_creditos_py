@@ -96,7 +96,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
   const tituloExterno = categoria === 'juridico' ? 'Jurídico' : 'POS';
   return (
     <div className="p-6">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto w-full max-w-none">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-slate-900">{TITLES[categoria] || categoria}</h2>
           {isExternal && user?.role === 'ADMIN' && (
@@ -133,6 +133,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
                   <th className="px-4 py-3 text-right">Saldo</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Sync</th>
+                  <th className="px-4 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,11 +151,20 @@ export default function Empresas({ categoria }: { categoria: string }) {
                     <td className="px-4 py-2.5 text-right font-semibold text-rose-600">{fmt(r.saldoPendiente || 0)}</td>
                     <td className="px-4 py-2.5">{r.estado || '-'}</td>
                     <td className="px-4 py-2.5 text-slate-500">{fmtDate(r.syncedAt)}</td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        disabled
+                        title="Crédito externo (POS/Jurídico): el cobro se registra en su sistema de origen y aquí llega sincronizado."
+                        className="cursor-not-allowed rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-400"
+                      >
+                        Cobro
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {external.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                    <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
                       {`Sin registros sincronizados de ${tituloExterno}${user?.role === 'ADMIN' ? ' — presioná "Sincronizar ahora" (o configurá la integración si es la primera vez)' : ''}.`}
                     </td>
                   </tr>
@@ -171,6 +181,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
                   <th className="px-4 py-3">Local</th>
                   <th className="px-4 py-3">Cobrador</th>
                   <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,9 +191,18 @@ export default function Empresas({ categoria }: { categoria: string }) {
                     <td className="px-4 py-2.5 text-slate-600">{s.locationName}</td>
                     <td className="px-4 py-2.5 text-slate-600">{s.collectorName || '-'}</td>
                     <td className="px-4 py-2.5">{s.isActive ? 'Activo' : 'Inactivo'}</td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        disabled
+                        title="Los cobros de tragamonedas se gestionan en el módulo de recaudación específico."
+                        className="cursor-not-allowed rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-400"
+                      >
+                        Cobro
+                      </button>
+                    </td>
                   </tr>
                 ))}
-                {sites.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">Sin sitios</td></tr>}
+                {sites.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Sin sitios</td></tr>}
               </tbody>
             </table>
           </div>

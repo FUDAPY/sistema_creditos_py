@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Document } from 'mongoose';
 import { randomUUID } from 'crypto';
@@ -175,6 +180,41 @@ export class PaymentsService {
     const paidAt = dto.paidAt || now;
     const commissionRate = 0.07; // comision por recibo (misma base del sistema original)
 
+    // Proyección del impacto (el ADMIN recalcula al aprobar): alimenta el ticket
+    // térmico que se imprime al registrar el cobro.
+    const projectedAccrued = accrueLoanState(
+      {
+        principal: loan.principal ?? 0,
+        interestRate: loan.interestRate ?? 20,
+        loanType: loan.loanType as never,
+        status: loan.status,
+        approvalStatus: loan.approvalStatus,
+        currentBalance: loan.currentBalance,
+        interestPaidAmount: loan.interestPaidAmount,
+        paidAmount: loan.paidAmount,
+        cycleDays: loan.cycleDays,
+        grantedAt: loan.grantedAt,
+        expiresAt: loan.expiresAt,
+        nextDueDate: loan.nextDueDate,
+        lastAccruedAt: loan.lastAccruedAt,
+      },
+      paidAt,
+    );
+    const projectedSplits = applyPaymentByType(
+      {
+        principalBalance: projectedAccrued.principalBalance,
+        accruedInterestBalance: projectedAccrued.accruedInterestBalance,
+        accruedLateFeeBalance: projectedAccrued.accruedLateFeeBalance,
+      },
+      dto.amount,
+      paymentType,
+    );
+    const previousTotal = Math.round(
+      projectedAccrued.principalBalance +
+        projectedAccrued.accruedInterestBalance +
+        projectedAccrued.accruedLateFeeBalance,
+    );
+
     const session = await this.paymentModel.db.startSession();
     try {
       await session.withTransaction(async () => {
@@ -201,6 +241,11 @@ export class PaymentsService {
               currency: loan.currency || 'PYG',
               paidAt,
               amount: dto.amount,
+              previousBalance: previousTotal,
+              principalApplied: projectedSplits.principalApplied,
+              interestApplied: projectedSplits.interestApplied,
+              arrearsApplied: projectedSplits.lateFeeApplied,
+              newBalance: Math.max(0, previousTotal - dto.amount),
               commissionAmount: Math.round(dto.amount * commissionRate),
               approvalStatus: 'PENDING',
               estadoRendicion: 'pendiente_rendicion',
@@ -236,6 +281,14 @@ export class PaymentsService {
           )
           .exec();
       });
+    } catch (err) {
+      console.error(
+        `[payments:register] Error al registrar pago loan=${dto.loanId} amount=${dto.amount} type=${paymentType}:`,
+        err instanceof Error ? err.stack || err.message : err,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo registrar el pago. Reintente o contacte al administrador.',
+      );
     } finally {
       await session.endSession();
     }
@@ -313,6 +366,8 @@ export class PaymentsService {
       : Math.max(0, pendingBeforeApproval - (payment.amount || 0));
     const definitiveTotalAfterApproval =
       finalPrincipalBalance + finalInterestBalance + finalLateFeeBalance;
+    const previousTotalApproval =
+      accrued.principalBalance + accrued.accruedInterestBalance + accrued.accruedLateFeeBalance;
 
     const session = await this.paymentModel.db.startSession();
     try {
@@ -328,8 +383,8 @@ export class PaymentsService {
                 approvedBy: actor.uid,
                 approvedByName: actor.name,
                 loanImpactApplied: true,
-                previousBalance: accrued.principalBalance,
-                newBalance: finalPrincipalBalance,
+                previousBalance: Math.round(previousTotalApproval),
+                newBalance: definitiveTotalAfterApproval,
                 principalApplied,
                 interestApplied,
                 interestDueAtPayment: accrued.accruedInterestBalance,
@@ -382,6 +437,14 @@ export class PaymentsService {
             .exec();
         }
       });
+    } catch (err) {
+      console.error(
+        `[payments:approve] Error al aprobar pago=${paymentId} loan=${payment.loanId}:`,
+        err instanceof Error ? err.stack || err.message : err,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo aprobar el pago. Reintente o contacte al administrador.',
+      );
     } finally {
       await session.endSession();
     }

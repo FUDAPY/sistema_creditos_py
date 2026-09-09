@@ -20,7 +20,7 @@ export default function CarteraActiva() {
 
   return (
     <div className="p-4 lg:p-6">
-      <div className="mx-auto max-w-[1500px]">
+      <div className="mx-auto w-full max-w-none">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 lg:text-xl">Cartera Activa</h2>

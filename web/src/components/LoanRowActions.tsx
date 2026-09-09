@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { api, apiPatch, apiPost } from '../lib/api';
+import { printPaymentTicket, type TicketData } from '../lib/ticket';
 import { money } from '../lib/format';
 
 export interface LoanLite {
@@ -126,7 +127,12 @@ export default function LoanRowActions({
   const doCobro = guard(async () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) throw new Error('Ingresá un monto válido.');
-    await apiPost('/payments', { loanId: loan.id, amount: value, paymentType: payType });
+    const created = await apiPost<Record<string, unknown>>('/payments', {
+      loanId: loan.id,
+      amount: value,
+      paymentType: payType,
+    });
+    printPaymentTicket(created as unknown as TicketData);
     setInfo('Pago registrado. Queda pendiente de aprobación del administrador.');
     setAmount('');
   });
