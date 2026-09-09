@@ -10,6 +10,7 @@ import Pagares from './pages/Pagares';
 import CarteraActiva from './pages/CarteraActiva';
 import PagoRapido from './pages/PagoRapido';
 import AprobarRendicion from './pages/AprobarRendicion';
+import Calendario from './pages/Calendario';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -28,7 +29,7 @@ export default function App() {
 
           {/* GENERAL */}
           <Route path="/pago-rapido" element={<PagoRapido />} />
-          <Route path="/calendario" element={<Placeholder title="Calendario" description="Vencimientos de créditos, alquileres y cobros programados." />} />
+          <Route path="/calendario" element={<Calendario />} />
 
           {/* COBROS / EMPRESAS */}
           <Route path="/cartera" element={<CarteraActiva />} />
