@@ -8,6 +8,8 @@ import LoansList from './pages/LoansList';
 import LoanForm from './pages/LoanForm';
 import Pagares from './pages/Pagares';
 import CarteraActiva from './pages/CarteraActiva';
+import PagoRapido from './pages/PagoRapido';
+import AprobarRendicion from './pages/AprobarRendicion';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -25,7 +27,7 @@ export default function App() {
           <Route path="/portfolio" element={<Portfolio />} />
 
           {/* GENERAL */}
-          <Route path="/pago-rapido" element={<Placeholder title="Pago Rápido" description="Registro inmediato de pagos de cuotas." />} />
+          <Route path="/pago-rapido" element={<PagoRapido />} />
           <Route path="/calendario" element={<Placeholder title="Calendario" description="Vencimientos de créditos, alquileres y cobros programados." />} />
 
           {/* COBROS / EMPRESAS */}
@@ -44,7 +46,7 @@ export default function App() {
 
           {/* ADMINISTRACIÓN (solo ADMIN por RBAC) */}
           <Route path="/admin/aprobar-creditos" element={<Placeholder title="Aprobar Créditos" description="Bandeja de autorización de créditos pendientes." />} />
-          <Route path="/admin/aprobar-rendicion" element={<Placeholder title="Aprobar Rendición" description="Aprobación de cobros para impacto en saldos." />} />
+          <Route path="/admin/aprobar-rendicion" element={<AprobarRendicion />} />
           <Route path="/admin/recaudo" element={<Placeholder title="Recaudo" description="Cobros por cobrador y administrador · comisiones 5% / 10%." />} />
 
           {/* USUARIOS */}
