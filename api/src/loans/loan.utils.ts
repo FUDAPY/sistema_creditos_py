@@ -7,6 +7,8 @@ import type { Loan, LoanType } from '@syscreditos/shared';
 const DAY_MS = 1000 * 60 * 60 * 24;
 export const DEFAULT_INTEREST_RATE = 20;
 export const DEFAULT_CYCLE_DAYS = 30;
+/** Dias de gracia antes de que comience a generar mora (cobro punitorio diario). */
+export const MORA_GRACE_DAYS = 5;
 
 export interface LoanLike {
   principal: number;
@@ -98,7 +100,9 @@ export const calculateDaysLate = (
   const referenceDay = startOfUtcDay(referenceTime);
   const dueDay = startOfUtcDay(loan.nextDueDate || loan.expiresAt || referenceTime);
   if (referenceDay <= dueDay) return 0;
-  return Math.floor((referenceDay - dueDay) / DAY_MS);
+  const lateDays = Math.floor((referenceDay - dueDay) / DAY_MS);
+  // 5 dias de gracia exactos: el punitorio diario recien aplica a partir del dia 6.
+  return Math.max(0, lateDays - MORA_GRACE_DAYS);
 };
 
 export interface AccruedState {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, apiPost } from '../lib/api';
+import CreditTable, { type LoanRow } from '../components/CreditTable';
 
-interface LoanRow { id: string; clientName?: string; loanType?: string; origen?: string; principal: number; currentBalance: number; totalAmount: number; status?: string; collectorName?: string; }
 interface SiteRow { id: string; name?: string; locationName?: string; collectorName?: string; isActive?: boolean; }
 interface ExternalRow {
   id: string;
@@ -35,6 +35,8 @@ export default function Empresas({ categoria }: { categoria: string }) {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const reload = () => setReloadVersion((v) => v + 1);
 
   // POS y Juridico son sistemas EXTERNOS: se leen de la coleccion local sincronizada.
   const isExternal = categoria === 'juridico' || categoria === 'pos';
@@ -64,7 +66,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
       api<SiteRow[]>('/slot-machines/sites').then(setSites).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, categoria]);
+  }, [user, categoria, reloadVersion]);
 
   const rows = useMemo(() => {
     if (isExternal) return [];
@@ -184,33 +186,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
             </table>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full whitespace-nowrap text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3 text-right">Capital</th>
-                  <th className="px-4 py-3 text-right">Saldo</th>
-                  <th className="px-4 py-3 text-right">Total</th>
-                  <th className="px-4 py-3">Cobrador</th>
-                  <th className="px-4 py-3">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{r.clientName || '-'}</td>
-                    <td className="px-4 py-2.5 text-right">{fmt(r.principal || 0)}</td>
-                    <td className="px-4 py-2.5 text-right">{fmt(r.currentBalance || 0)}</td>
-                    <td className="px-4 py-2.5 text-right">{fmt(r.totalAmount || 0)}</td>
-                    <td className="px-4 py-2.5">{r.collectorName || '-'}</td>
-                    <td className="px-4 py-2.5">{STATUS[r.status || ''] || r.status}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin registros</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <CreditTable loans={rows} reload={reload} />
         )}
       </div>
     </div>

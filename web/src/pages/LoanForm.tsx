@@ -6,6 +6,8 @@ import { api, apiPost } from '../lib/api';
 interface ClientRow {
   id: string;
   fullName: string;
+  documentId?: string;
+  phone?: string;
 }
 interface UserRow {
   uid: string;
@@ -38,6 +40,8 @@ export default function LoanForm() {
   const [tomos, setTomos] = useState<string[]>([]);
 
   const [clientId, setClientId] = useState('');
+  const [clientText, setClientText] = useState('');
+  const [clientOpen, setClientOpen] = useState(false);
   const [collectorId, setCollectorId] = useState(user?.role === 'COLLECTOR' ? user.uid : '');
   const [collectorName, setCollectorName] = useState(user?.role === 'COLLECTOR' ? user.name : '');
   const [loanType, setLoanType] = useState<'PRESTAMO' | 'EMPENO' | 'ALQUILER_INMUEBLE' | 'PRESTACION_SERVICIOS' | 'CELULAR'>('PRESTAMO');
@@ -67,6 +71,15 @@ export default function LoanForm() {
     if (cantidadCuotas && CUOTAS_RATE[cantidadCuotas] !== undefined) return CUOTAS_RATE[cantidadCuotas];
     return 20;
   }, [cantidadCuotas]);
+  const suggestions = useMemo(() => {
+    const q = clientText.trim().toLocaleLowerCase('es');
+    if (!q) return [];
+    return clients
+      .filter((c) =>
+        `${c.fullName} ${c.documentId || ''}`.toLocaleLowerCase('es').includes(q),
+      )
+      .slice(0, 8);
+  }, [clients, clientText]);
   const tomo = tomoMode === 'existente' ? tomoSel : tomoMode === 'nuevo' ? tomoNuevo.trim() : '';
 
   const submit = async (event: FormEvent) => {
@@ -113,17 +126,46 @@ export default function LoanForm() {
       <h2 className="mb-4 text-xl font-semibold">Nuevo crédito</h2>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <form onSubmit={submit} className="grid grid-cols-2 gap-4 rounded bg-white p-5 shadow">
-        <label className="block text-sm">
+        <div className="block text-sm">
           Cliente *
-          <select required value={clientId} onChange={(e) => setClientId(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-            <option value="">Seleccionar…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.fullName}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="relative mt-1">
+            <input
+              value={clientText}
+              onChange={(e) => {
+                setClientText(e.target.value);
+                setClientId('');
+              }}
+              onFocus={() => setClientOpen(true)}
+              onBlur={() => window.setTimeout(() => setClientOpen(false), 150)}
+              placeholder="Escribí nombre o documento…"
+              className="w-full rounded border border-slate-300 px-2 py-1.5"
+            />
+            {clientOpen && suggestions.length > 0 && (
+              <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                {suggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setClientId(c.id);
+                      setClientText(c.documentId ? `${c.fullName} · ${c.documentId}` : c.fullName);
+                      setClientOpen(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-teal-50"
+                  >
+                    <span className="font-medium text-slate-800">{c.fullName}</span>
+                    {c.documentId && <span className="ml-1 text-xs text-slate-400">{c.documentId}</span>}
+                    {c.phone && <span className="ml-1 text-xs text-slate-400">· {c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {clientText && !clientId && suggestions.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">Sin coincidencias. Podés registrar al cliente desde "Nuevo Cliente".</p>
+            )}
+          </div>
+        </div>
         <label className="block text-sm">
           Cobrador *
           <select required value={collectorId} onChange={(e) => {

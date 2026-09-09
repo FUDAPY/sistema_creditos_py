@@ -35,6 +35,11 @@ export default function SidebarLayout() {
   const role = user?.role as Role | undefined;
   const [dbUp, setDbUp] = useState<boolean | null>(null);
   const [sync, setSync] = useState(0);
+  const [empresasOpen, setEmpresasOpen] = useState(() => localStorage.getItem('syscreditos_sidebar_empresas') !== '0');
+
+  useEffect(() => {
+    localStorage.setItem('syscreditos_sidebar_empresas', empresasOpen ? '1' : '0');
+  }, [empresasOpen]);
 
   useEffect(() => {
     const ping = () => {
@@ -74,11 +79,32 @@ export default function SidebarLayout() {
                 {section.items.map((item) =>
                   item.children ? (
                     <div key={item.path}>
-                      <p className="px-3 py-1 text-sm font-medium text-slate-500">{item.label}</p>
-                      <div className="ml-3 space-y-0.5 border-l border-slate-200 pl-2">
-                        {item.children.map((child) => (
-                          <ItemLink key={child.path} item={child} role={role} />
-                        ))}
+                      <button
+                        onClick={() => setEmpresasOpen((o) => !o)}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-slate-400" />
+                          {item.label}
+                        </span>
+                        <span
+                          className={`text-xs text-slate-400 transition-transform duration-300 ${empresasOpen ? 'rotate-90' : ''}`}
+                        >
+                          ›
+                        </span>
+                      </button>
+                      <div
+                        className={`grid transition-all duration-300 ease-in-out ${
+                          empresasOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                        }`}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="ml-3 space-y-0.5 border-l border-slate-200 py-1 pl-2">
+                            {item.children.map((child) => (
+                              <ItemLink key={child.path} item={child} role={role} />
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ) : (
