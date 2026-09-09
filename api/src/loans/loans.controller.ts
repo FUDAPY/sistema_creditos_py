@@ -28,11 +28,13 @@ export class LoansController {
     @Query('status') status?: string,
     @Query('approvalStatus') approvalStatus?: string,
     @Query('collectorId') collectorId?: string,
+    @Query('clientId') clientId?: string,
   ): Promise<Record<string, unknown>[]> {
     return this.loansService.list(user.companyId, {
       status,
       approvalStatus,
       collectorId,
+      clientId,
     });
   }
 

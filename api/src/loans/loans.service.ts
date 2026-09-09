@@ -79,12 +79,13 @@ export class LoansService {
 
   async list(
     companyId: string,
-    filters: { status?: string; collectorId?: string; approvalStatus?: string } = {},
+    filters: { status?: string; collectorId?: string; approvalStatus?: string; clientId?: string } = {},
   ): Promise<Record<string, unknown>[]> {
     const query: Record<string, unknown> = { companyId };
     if (filters.status) query.status = filters.status;
     if (filters.approvalStatus) query.approvalStatus = filters.approvalStatus;
     if (filters.collectorId) query.collectorId = filters.collectorId;
+    if (filters.clientId) query.clientId = filters.clientId;
     const docs = await this.loanModel.find(query).sort({ grantedAt: -1 }).exec();
     return docs.map((d) => this.toPublic(d));
   }

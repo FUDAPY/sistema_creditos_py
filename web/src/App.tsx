@@ -16,6 +16,8 @@ import AprobarCreditos from './pages/AprobarCreditos';
 import ClasificacionCartera from './pages/ClasificacionCartera';
 import NuevoCliente from './pages/NuevoCliente';
 import GestionUsuarios from './pages/GestionUsuarios';
+import Empresas from './pages/Empresas';
+import ClienteDetalle from './pages/ClienteDetalle';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -38,16 +40,17 @@ export default function App() {
 
           {/* COBROS / EMPRESAS */}
           <Route path="/cartera" element={<CarteraActiva />} />
-          <Route path="/empresas/creditos" element={<Placeholder title="Empresas · Créditos" />} />
-          <Route path="/empresas/alquileres" element={<Placeholder title="Empresas · Alquileres" />} />
-          <Route path="/empresas/empenos" element={<Placeholder title="Empresas · Empeños" />} />
-          <Route path="/empresas/prestacion" element={<Placeholder title="Empresas · Prestación de Servicios" />} />
-          <Route path="/empresas/tragamonedas" element={<Placeholder title="Empresas · Tragamonedas" />} />
-          <Route path="/empresas/pos" element={<Placeholder title="Empresas · POS" />} />
-          <Route path="/empresas/juridico" element={<Placeholder title="Empresas · Jurídico" />} />
+          <Route path="/empresas/creditos" element={<Empresas categoria="creditos" />} />
+          <Route path="/empresas/alquileres" element={<Empresas categoria="alquileres" />} />
+          <Route path="/empresas/empenos" element={<Empresas categoria="empenos" />} />
+          <Route path="/empresas/prestacion" element={<Empresas categoria="prestacion" />} />
+          <Route path="/empresas/tragamonedas" element={<Empresas categoria="tragamonedas" />} />
+          <Route path="/empresas/pos" element={<Empresas categoria="pos" />} />
+          <Route path="/empresas/juridico" element={<Empresas categoria="juridico" />} />
 
           {/* CLIENTES */}
           <Route path="/clientes/nuevo" element={<NuevoCliente />} />
+          <Route path="/clientes/:id" element={<ClienteDetalle />} />
           <Route path="/cartera/clasificacion" element={<ClasificacionCartera />} />
 
           {/* ADMINISTRACIÓN (solo ADMIN por RBAC) */}
