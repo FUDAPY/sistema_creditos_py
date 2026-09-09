@@ -1,4 +1,6 @@
-/* Ticket térmico 80mm para comprobantes de pago (Chicolín Préstamos). */
+/* Ticket térmico 80mm para comprobantes de pago (Chicolín Préstamos).
+   Cada impresión genera DOS copias con el mismo formato: COPIA CLIENTE y
+   COPIA ADMINISTRACION, separadas por una línea de corte. */
 
 export interface TicketData {
   id?: string;
@@ -38,28 +40,14 @@ const fmtDate = (t?: number) =>
       }).format(new Date(t))
     : '-';
 
-/** Abre la ventana de impresión del ticket de pago (ancho 80mm). */
-export function printPaymentTicket(p: TicketData): void {
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<title>Ticket de pago</title>
-<style>
-  @page { size: 80mm auto; margin: 0; }
-  html, body { margin: 0; padding: 0; }
-  body { width: 78mm; margin: 0 auto; padding: 2mm 1mm 4mm; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #000; }
-  h1 { font-size: 13px; margin: 1mm 0; text-align: center; }
-  .center { text-align: center; }
-  .bold { font-weight: 700; }
-  .big { font-size: 13px; }
-  hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
-  .line { display: flex; justify-content: space-between; gap: 4mm; }
-  .line span:first-child { white-space: nowrap; }
-  .footer { margin-top: 3mm; text-align: center; font-size: 10px; }
-</style></head><body>
+/** Cuerpo idéntico de una copia del ticket (mismo formato para ambas copias). */
+const copyHtml = (p: TicketData, label: 'COPIA CLIENTE' | 'COPIA ADMINISTRACION', last = false) => `
+<div class="copy ${last ? 'last' : ''}">
   <h1>LOGO DE LA EMPRESA</h1>
   <p class="center bold">ESTUDIO JURIDICO<br>LIN GROUP Y ASOCIADOS<br>
     Galeria Jebai Center<br>2do Piso Torre A<br>CIUDAD DEL ESTE, PARAGUAY</p>
   <hr>
-  <p class="center bold">COPIA CLIENTE<br><span class="big">TICKET DE PAGO</span></p>
+  <p class="center bold">${label}<br><span class="big">TICKET DE PAGO</span></p>
   <div class="line"><span>Fecha:</span><span>${fmtDate(p.paidAt || p.createdAt)}</span></div>
   <div class="line"><span>Ticket Nro:</span><span>${ticketNumber(p.id)}</span></div>
   <div class="line"><span>Credito ID:</span><span>${p.loanId || '-'}</span></div>
@@ -80,10 +68,34 @@ export function printPaymentTicket(p: TicketData): void {
   <hr>
   <p class="center">Conserve este ticket como comprobante<br>Gracias por su preferencia</p>
   <p class="footer">© Todos los derechos reservados - OTELAX DEV de GRUPO OTELAX HOLDING<br>url: www.dev.otelax.com</p>
-  <p class="center" style="font-size:10px">[Si no se imprimió: Ctrl+P]</p>
+</div>`;
+
+/** Abre la ventana de impresión con las DOS copias del ticket (80mm). */
+export function printPaymentTicket(p: TicketData): void {
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Ticket de pago</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  body { width: 78mm; margin: 0 auto; padding: 2mm 1mm; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #000; }
+  h1 { font-size: 13px; margin: 1mm 0; text-align: center; }
+  .center { text-align: center; }
+  .bold { font-weight: 700; }
+  .big { font-size: 13px; }
+  hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
+  .line { display: flex; justify-content: space-between; gap: 4mm; }
+  .line span:first-child { white-space: nowrap; }
+  .footer { margin-top: 3mm; text-align: center; font-size: 10px; }
+  .copy { page-break-after: always; }
+  .copy.last { page-break-after: auto; }
+  .cut { text-align: center; color: #333; margin: 1mm 0 2mm; letter-spacing: 1px; }
+</style></head><body>
+${copyHtml(p, 'COPIA CLIENTE')}
+<div class="cut">- - - - - - - - CORTAR AQUÍ - - - - - - - -</div>
+${copyHtml(p, 'COPIA ADMINISTRACION', true)}
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=340,height=640,menubar=no,toolbar=no');
+  const win = window.open('', '_blank', 'width=340,height=800,menubar=no,toolbar=no');
   if (!win) {
     alert('Permití las ventanas emergentes para imprimir el ticket.');
     return;
