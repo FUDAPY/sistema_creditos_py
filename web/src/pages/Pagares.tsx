@@ -10,8 +10,11 @@ interface PagareRow {
   monto: number;
   estado: 'activo' | 'cancelado';
   cobrador?: string;
+  collectorId?: string;
   asignado?: boolean;
 }
+
+interface CollectorOption { uid: string; name: string; }
 
 interface PagareResumen {
   total: number;
@@ -33,6 +36,8 @@ export default function Pagares() {
   const [query, setQuery] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'activo' | 'cancelado'>('');
   const [tomoFiltro, setTomoFiltro] = useState('');
+  const [cobradorFiltro, setCobradorFiltro] = useState('');
+  const [collectors, setCollectors] = useState<CollectorOption[]>([]);
 
   const load = useCallback(() => {
     api<PagareRow[]>('/pagares')
@@ -40,6 +45,9 @@ export default function Pagares() {
       .catch((e) => setError(e.message));
     api<PagareResumen>('/pagares/resumen')
       .then(setResumen)
+      .catch(() => undefined);
+    api<CollectorOption[]>('/pagares/collectors')
+      .then(setCollectors)
       .catch(() => undefined);
   }, []);
 
@@ -60,13 +68,18 @@ export default function Pagares() {
     return pagares.filter((p) => {
       if (estadoFiltro && p.estado !== estadoFiltro) return false;
       if (tomoFiltro && p.tomo !== tomoFiltro) return false;
+      if (cobradorFiltro === '__none__') {
+        if (p.cobrador) return false;
+      } else if (cobradorFiltro && p.cobrador !== cobradorFiltro) {
+        return false;
+      }
       if (!q) return true;
       const haystack = `${p.nombre || ''} ${p.cedula || ''} ${p.tomo || ''} ${p.cobrador || ''} ${
         p.monto || 0
       }`.toLocaleLowerCase('es');
       return haystack.includes(q);
     });
-  }, [pagares, query, estadoFiltro, tomoFiltro]);
+  }, [pagares, query, estadoFiltro, tomoFiltro, cobradorFiltro]);
 
   const createTomo = async () => {
     setError('');
@@ -100,6 +113,23 @@ export default function Pagares() {
       setError(e instanceof Error ? e.message : 'Error al importar CSV.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Asigna el pagaré al cobrador elegido (o lo libera si se elige vacío). */
+  const assign = async (row: PagareRow, name: string) => {
+    setError('');
+    setInfo('');
+    const collector = collectors.find((c) => c.name === name);
+    try {
+      await apiPatch<{ success: boolean }>(`/pagares/${row.id}/cobrador`, {
+        cobrador: name,
+        collectorId: collector?.uid || '',
+      });
+      setInfo(name ? `Pagaré ${row.tomo} asignado a ${name}.` : `Pagaré ${row.tomo} liberado.`);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo asignar el cobrador.');
     }
   };
 
@@ -280,15 +310,27 @@ export default function Pagares() {
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
+        <select
+          value={cobradorFiltro}
+          onChange={(e) => setCobradorFiltro(e.target.value)}
+          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+        >
+          <option value="">Cobrador: todos</option>
+          <option value="__none__">Sin asignar</option>
+          {collectors.map((c) => (
+            <option key={c.uid} value={c.name}>{c.name}</option>
+          ))}
+        </select>
         <span className="text-xs text-slate-500">
           Mostrando {filtered.length} de {pagares.length}
         </span>
-        {(query || estadoFiltro || tomoFiltro) && (
+        {(query || estadoFiltro || tomoFiltro || cobradorFiltro) && (
           <button
             onClick={() => {
               setQuery('');
               setEstadoFiltro('');
               setTomoFiltro('');
+              setCobradorFiltro('');
             }}
             className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
           >
@@ -328,7 +370,21 @@ export default function Pagares() {
                     {p.asignado ? 'Asignado' : p.estado}
                   </span>
                 </td>
-                <td className="px-3 py-1.5">{p.cobrador || '-'}</td>
+                <td className="px-3 py-1.5">
+                  <select
+                    value={p.cobrador || ''}
+                    onChange={(e) => void assign(p, e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-teal-400"
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {p.cobrador && !collectors.some((c) => c.name === p.cobrador) && (
+                      <option value={p.cobrador}>{p.cobrador}</option>
+                    )}
+                    {collectors.map((c) => (
+                      <option key={c.uid} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </td>
                 <td className="px-3 py-1.5">
                   <button onClick={() => void toggle(p)} className="text-xs text-blue-600 underline">
                     {p.estado === 'activo' ? 'Entregar' : 'Devolver'}

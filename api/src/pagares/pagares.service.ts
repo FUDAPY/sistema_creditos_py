@@ -27,11 +27,20 @@ export interface LoanStatusDoc extends Document {
   status?: string;
 }
 
+/** Proyección mínima de `users` para poblar el selector de cobradores. */
+export interface UserMiniDoc extends Document {
+  uid: string;
+  name: string;
+  role?: string;
+  isActive?: boolean;
+}
+
 @Injectable()
 export class PagaresService {
   constructor(
     @InjectModel('Pagare') private readonly pagareModel: Model<PagareDoc>,
     @InjectModel('Loan') private readonly loanModel: Model<LoanStatusDoc>,
+    @InjectModel('User') private readonly userModel: Model<UserMiniDoc>,
   ) {}
 
   toPublic(doc: PagareDoc): Record<string, unknown> {
@@ -50,6 +59,48 @@ export class PagaresService {
     const docs = await this.pagareModel.find({ companyId }).sort({ createdAt: -1 }).exec();
     const rows = docs.map((d) => this.toPublic(d));
     return this.applyLoanStatus(companyId, rows);
+  }
+
+  /**
+   * Cobradores activos de la empresa (uid + nombre) para poder asignar/entregar pagarés.
+   * No expone emails ni datos sensibles: sólo lo necesario para el selector.
+   */
+  async listCollectors(companyId: string): Promise<Array<{ uid: string; name: string }>> {
+    const users = await this.userModel
+      .find({ companyId, role: 'COLLECTOR', isActive: { $ne: false } })
+      .select('uid name')
+      .sort({ name: 1 })
+      .lean()
+      .exec();
+    return users
+      .map((u) => ({ uid: String(u.uid || ''), name: String(u.name || '') }))
+      .filter((u) => u.uid && u.name);
+  }
+
+  /**
+   * Asigna un pagaré a un cobrador (queda "en su poder") o lo libera si cobrador = ''.
+   * No toca `asignado`: ese flag indica que el pagaré ya fue usado en un crédito.
+   */
+  async assignCollector(
+    companyId: string,
+    pagareId: string,
+    collector: { collectorId?: string; cobrador?: string },
+  ): Promise<void> {
+    const nombre = String(collector.cobrador || '').trim();
+    const uid = String(collector.collectorId || '').trim();
+    const res = await this.pagareModel
+      .updateOne(
+        { _id: pagareId, companyId },
+        {
+          $set: {
+            cobrador: nombre,
+            collectorId: nombre ? uid : '',
+            updatedAt: Date.now(),
+          },
+        },
+      )
+      .exec();
+    if (res.matchedCount === 0) throw new NotFoundException('Pagaré no encontrado.');
   }
 
   /**

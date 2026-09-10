@@ -48,7 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Nuevo Cliente', path: '/clientes/nuevo' },
       { label: 'Nuevo Crédito', path: '/loans/new' },
       { label: 'Clasif. de Cartera', path: '/cartera/clasificacion' },
-      { label: 'Pagarés', path: '/pagares', roles: ['ADMIN'] },
+      { label: 'Pagarés', path: '/pagares' },
     ],
   },
   {

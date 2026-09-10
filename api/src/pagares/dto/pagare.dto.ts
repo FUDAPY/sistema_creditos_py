@@ -38,6 +38,17 @@ export class TogglePagareStatusDto {
   estado!: 'activo' | 'cancelado';
 }
 
+/** Asigna (o libera) el cobrador que tiene en su poder el pagaré. */
+export class AssignPagareCollectorDto {
+  @IsOptional()
+  @IsString()
+  collectorId?: string;
+
+  @IsOptional()
+  @IsString()
+  cobrador?: string;
+}
+
 export class ImportPagaresDto {
   @IsString()
   @IsNotEmpty()
