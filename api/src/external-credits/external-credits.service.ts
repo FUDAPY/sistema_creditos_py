@@ -169,7 +169,7 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
         _id: id,
         id,
         companyId,
-        clientId: row.clienteJuridicoId || '',
+        clientId: (row as unknown as { clienteJuridicoId?: string }).clienteJuridicoId || '',
         clientDocumentId: row.cedula || '',
         clientPhone: row.telefono || '',
         clientAddress: row.direccion || '',
