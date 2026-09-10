@@ -28,3 +28,15 @@ export const localTodayInput = (): string => {
  */
 export const dateInputToMs = (value?: string): number | undefined =>
   value ? new Date(`${value}T12:00:00`).getTime() : undefined;
+
+/**
+ * Normaliza texto para BUSCAR: minúsculas y sin tildes.
+ * Clave en Paraguay: el cobrador escribe "gimenez" y debe encontrar "GIMÉNEZ"
+ * (y "nunez" -> "NÚÑEZ"). NFD descompone la tilde y el rango la elimina.
+ */
+export const normalizeSearch = (value?: string): string =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es')
+    .trim();

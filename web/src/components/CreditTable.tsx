@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
-import { money } from '../lib/format';
+import { money, normalizeSearch } from '../lib/format';
 import Pagination from './Pagination';
 import LoanRowActions from './LoanRowActions';
 import PaymentsHistoryModal from './PaymentsHistoryModal';
@@ -126,12 +126,12 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
   const tipos = useMemo(() => Array.from(new Set(enriched.map((r) => r.tipoLabel))).sort(), [enriched]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('es');
+    const q = normalizeSearch(query);
     const list = enriched.filter((r) => {
       if (collector && r.collectorName !== collector) return false;
       if (tipo && r.tipoLabel !== tipo) return false;
       if (estado && r.cat.key !== estado) return false;
-      if (q && !`${r.clientName || ''} ${r.clientDocumentId || ''} ${r.clientId || ''}`.toLocaleLowerCase('es').includes(q)) return false;
+      if (q && !normalizeSearch(`${r.clientName || ''} ${r.clientDocumentId || ''} ${r.clientId || ''} ${r.description || ''}`).includes(q)) return false;
       return true;
     });
     return list.sort((a, b) => b.mora - a.mora || String(a.clientName || '').localeCompare(String(b.clientName || ''), 'es'));
