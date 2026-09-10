@@ -76,8 +76,16 @@ function sanitizeArgs(args: unknown[]): unknown[] {
 
 export function installStandaloneTransactions(): void {
   if (installed) return;
-  installed = true;
+  try {
+    install();
+    installed = true;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[tx] Shim de transacciones no aplicado:', err instanceof Error ? err.message : err);
+  }
+}
 
+function install(): void {
   const proto = mongoose.Connection.prototype as unknown as {
     startSession: (...args: unknown[]) => Promise<unknown>;
   };

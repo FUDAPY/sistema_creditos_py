@@ -12,7 +12,13 @@ import { installStandaloneTransactions } from './common/mongo-standalone';
 async function bootstrap() {
   // Compatibilidad con MongoDB standalone (sin replica set): evita el error
   // "Transaction numbers are only allowed on a replica set member or mongos".
-  installStandaloneTransactions();
+  try {
+    installStandaloneTransactions();
+  } catch (err) {
+    // Nunca debe impedir el arranque de la API.
+    // eslint-disable-next-line no-console
+    console.error('[tx] No se pudo instalar el shim de transacciones:', err instanceof Error ? err.message : err);
+  }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
