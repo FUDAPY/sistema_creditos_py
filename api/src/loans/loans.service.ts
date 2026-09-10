@@ -147,13 +147,18 @@ export class LoansService {
 
   async list(
     companyId: string,
-    filters: { status?: string; collectorId?: string; approvalStatus?: string; clientId?: string } = {},
+    filters: {
+      status?: string;
+      collectorId?: string;
+      approvalStatus?: string;
+      clientId?: string;
+    } = {},
   ): Promise<Record<string, unknown>[]> {
     const query: Record<string, unknown> = { companyId };
     if (filters.status) query.status = filters.status;
     if (filters.approvalStatus) query.approvalStatus = filters.approvalStatus;
-    if (filters.collectorId) query.collectorId = filters.collectorId;
     if (filters.clientId) query.clientId = filters.clientId;
+    if (filters.collectorId) query.collectorId = filters.collectorId;
     const docs = await this.loanModel.find(query).sort({ grantedAt: -1 }).exec();
     const publicRows = docs.map((d) => this.toPublic(d));
     await this.attachClientMeta(publicRows, companyId);

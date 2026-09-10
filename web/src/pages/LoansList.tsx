@@ -33,11 +33,10 @@ export default function LoansList() {
     const params = new URLSearchParams();
     if (filter === 'PENDING') params.set('approvalStatus', 'PENDING');
     else if (filter) params.set('status', filter);
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
     api<LoanRow[]>(`/loans?${params.toString()}`)
       .then(setRows)
       .catch((e) => setError(e.message));
-  }, [filter, user]);
+  }, [filter]);
 
   useEffect(load, [load]);
 

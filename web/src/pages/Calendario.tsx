@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
 interface LoanRow {
@@ -23,7 +22,6 @@ const keyOf = (t: number) => {
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 export default function Calendario() {
-  const { user } = useAuth();
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [error, setError] = useState('');
   const today = new Date();
@@ -31,12 +29,10 @@ export default function Calendario() {
   const [selected, setSelected] = useState(keyOf(Date.now()));
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
-    api<LoanRow[]>(`/loans?approvalStatus=APPROVED&${params.toString()}`)
+    api<LoanRow[]>('/loans?approvalStatus=APPROVED')
       .then(setLoans)
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, []);
 
   const dueMap = useMemo(() => {
     const map = new Map<string, LoanRow[]>();

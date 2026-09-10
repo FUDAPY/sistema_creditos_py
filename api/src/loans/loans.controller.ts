@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -31,6 +32,8 @@ export class LoansController {
     @Query('collectorId') collectorId?: string,
     @Query('clientId') clientId?: string,
   ): Promise<Record<string, unknown>[]> {
+    // Visibilidad global: todos los roles ven toda la cartera.
+    // El filtro por cobrador es opcional (lo usan las pantallas cuando se elige uno).
     return this.loansService.list(user.companyId, {
       status,
       approvalStatus,
@@ -45,7 +48,7 @@ export class LoansController {
     @Param('id') id: string,
   ): Promise<Record<string, unknown>> {
     const loan = await this.loansService.getById(user.companyId, id);
-    if (!loan) throw new Error('Credito no encontrado.');
+    if (!loan) throw new NotFoundException('Crédito no encontrado.');
     return loan;
   }
 

@@ -54,9 +54,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
-    api<LoanRow[]>(`/loans?approvalStatus=APPROVED&${params.toString()}`)
+    api<LoanRow[]>('/loans?approvalStatus=APPROVED')
       .then(setLoans)
       .catch((e) => setError(e.message));
     if (isExternal) {
@@ -66,7 +64,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
       api<SiteRow[]>('/slot-machines/sites').then(setSites).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, categoria, reloadVersion]);
+  }, [categoria, reloadVersion]);
 
   // Créditos espejo locales de los sistemas externos (cobrables con el flujo normal).
   const mirrorLoans = useMemo(

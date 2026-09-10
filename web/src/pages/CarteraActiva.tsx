@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import CreditTable, { type LoanRow } from '../components/CreditTable';
 
 export default function CarteraActiva() {
-  const { user } = useAuth();
   const [rows, setRows] = useState<LoanRow[]>([]);
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    const params = new URLSearchParams();
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
-    api<LoanRow[]>(`/loans?${params.toString()}`)
+    api<LoanRow[]>('/loans')
       .then(setRows)
       .catch((e) => setError(e instanceof Error ? e.message : 'Error al cargar cartera.'));
-  }, [user]);
+  }, []);
 
   useEffect(load, [load]);
 

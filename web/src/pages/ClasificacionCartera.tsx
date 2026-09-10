@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
 interface LoanRow {
@@ -36,18 +35,15 @@ const CATS: Array<{ key: Cat | 'TODOS'; label: string }> = [
 ];
 
 export default function ClasificacionCartera() {
-  const { user } = useAuth();
   const [rows, setRows] = useState<LoanRow[]>([]);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Cat | 'TODOS'>('TODOS');
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
-    api<LoanRow[]>(`/loans?approvalStatus=APPROVED&${params.toString()}`)
+    api<LoanRow[]>('/loans?approvalStatus=APPROVED')
       .then(setRows)
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, []);
 
   const items = useMemo(
     () =>

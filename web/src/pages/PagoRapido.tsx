@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { api, apiPost } from '../lib/api';
 
 interface LoanRow {
@@ -19,7 +18,6 @@ interface LoanRow {
 const fmt = (v: number) => Math.round(v).toLocaleString('es-PY');
 
 export default function PagoRapido() {
-  const { user } = useAuth();
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [search, setSearch] = useState('');
   const [loanId, setLoanId] = useState('');
@@ -30,12 +28,10 @@ export default function PagoRapido() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
-    api<LoanRow[]>(`/loans?approvalStatus=APPROVED&${params.toString()}`)
+    api<LoanRow[]>('/loans?approvalStatus=APPROVED')
       .then(setLoans)
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, []);
 
   const candidates = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('es');
