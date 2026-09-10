@@ -85,6 +85,15 @@ export function installStandaloneTransactions(): void {
   }
 }
 
+/**
+ * ¿Se deben permitir transacciones reales?
+ * Por defecto NO (Mongo de producción es standalone). Si algún día usás replica set,
+ * definí `MONGO_TRANSACTIONS=true` para usar transacciones reales.
+ */
+function transactionsAllowed(): boolean {
+  return process.env.MONGO_TRANSACTIONS === 'true';
+}
+
 function install(): void {
   const proto = mongoose.Connection.prototype as unknown as {
     startSession: (...args: unknown[]) => Promise<unknown>;
@@ -98,32 +107,40 @@ function install(): void {
   ): Promise<unknown> {
     let mode = modes.get(this);
     if (!mode) {
-      try {
-        const probe = (await originalStartSession.apply(this, args)) as {
-          withTransaction: (fn: () => Promise<void>) => Promise<void>;
-          endSession: () => Promise<void>;
-        };
+      if (!transactionsAllowed()) {
+        // Modo garantizado para Mongo standalone: nunca usa sessions/transacciones.
+        mode = 'fake';
+      } else {
+        // Con MONGO_TRANSACTIONS=true probamos con un comando REAL (ping) dentro de la sesión:
+        // así detectamos con certeza si el server soporta transacciones.
         try {
-          await probe.withTransaction(async () => {
-            /* probe sin operaciones */
-          });
-          mode = 'real';
+          const probe = (await originalStartSession.apply(this, args)) as {
+            endSession: () => Promise<void>;
+          } & Record<string, unknown>;
+          try {
+            const db = this.db;
+            if (!db) throw new Error('sin conexión db');
+            await db.command({ ping: 1 }, { session: probe as never });
+            mode = 'real';
+          } catch {
+            mode = 'fake';
+          } finally {
+            try {
+              await probe.endSession();
+            } catch {
+              /* ignore */
+            }
+          }
         } catch {
           mode = 'fake';
-        } finally {
-          try {
-            await probe.endSession();
-          } catch {
-            /* ignore */
-          }
         }
-      } catch {
-        mode = 'fake';
       }
       modes.set(this, mode);
       // eslint-disable-next-line no-console
       console.log(
-        `[tx] MongoDB sessions: ${mode === 'real' ? 'transacciones habilitadas' : 'standalone → ejecutando sin transacciones'}`,
+        `[tx] MongoDB sessions: ${
+          mode === 'real' ? 'transacciones habilitadas' : 'standalone → ejecutando sin transacciones'
+        }`,
       );
     }
 
