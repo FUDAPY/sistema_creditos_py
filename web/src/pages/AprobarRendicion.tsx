@@ -89,7 +89,7 @@ export default function AprobarRendicion() {
         await apiPost<{ success: boolean }>(`/payments/${id}/approve`);
         // Dispara la impresión del ticket térmico con los montos definitivos.
         const paid = await api<Record<string, unknown>>(`/payments/${id}`);
-        printPaymentTicket(paid as unknown as TicketData);
+        void printPaymentTicket(paid as unknown as TicketData);
         setMsg('Pago aprobado. El saldo fue actualizado y se imprimió el ticket.');
       } else {
         const reason = window.prompt('Motivo del rechazo/anulación:')?.trim() || '';

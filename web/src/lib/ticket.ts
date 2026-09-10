@@ -41,11 +41,16 @@ const fmtDate = (t?: number) =>
     : '-';
 
 /** Cuerpo idéntico de una copia del ticket (mismo formato para ambas copias). */
-const copyHtml = (p: TicketData, label: 'COPIA CLIENTE' | 'COPIA ADMINISTRACION', last = false) => `
+const copyHtml = (
+  p: TicketData,
+  label: 'COPIA CLIENTE' | 'COPIA ADMINISTRACION',
+  logoDataUrl: string | null,
+  last = false,
+) => `
 <div class="copy ${last ? 'last' : ''}">
-  <h1>LOGO DE LA EMPRESA</h1>
+  ${logoDataUrl ? `<img class="logo" src="${logoDataUrl}" alt="Chicolin Prestamos" />` : '<h1>CHICOLIN PRESTAMOS</h1>'}
   <p class="center bold">ESTUDIO JURIDICO<br>LIN GROUP Y ASOCIADOS<br>
-    Galeria Jebai Center<br>2do Piso Torre A<br>CIUDAD DEL ESTE, PARAGUAY</p>
+    Edificio BIJ<br>2do Piso - Av. Camilo Recalde c/ Av. Capitan Miranda<br>CIUDAD DEL ESTE, PARAGUAY</p>
   <hr>
   <p class="center bold">${label}<br><span class="big">TICKET DE PAGO</span></p>
   <div class="line"><span>Fecha:</span><span>${fmtDate(p.paidAt || p.createdAt)}</span></div>
@@ -70,8 +75,41 @@ const copyHtml = (p: TicketData, label: 'COPIA CLIENTE' | 'COPIA ADMINISTRACION'
   <p class="footer">© Todos los derechos reservados - OTELAX DEV de GRUPO OTELAX HOLDING<br>url: www.dev.otelax.com</p>
 </div>`;
 
+let cachedLogoDataUrl: string | null | undefined;
+
+/** Logo embebido como dataURL (mismo origen) para que la impresora térmica lo renderice seguro. */
+async function getLogoDataUrl(): Promise<string | null> {
+  if (cachedLogoDataUrl !== undefined) return cachedLogoDataUrl;
+  try {
+    const res = await fetch('/logo.jpg', { cache: 'force-cache' });
+    if (!res.ok) throw new Error(`logo ${res.status}`);
+    const blob = await res.blob();
+    cachedLogoDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('No se pudo leer el logo'));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    cachedLogoDataUrl = null;
+  }
+  return cachedLogoDataUrl;
+}
+
 /** Abre la ventana de impresión con las DOS copias del ticket (80mm). */
-export function printPaymentTicket(p: TicketData): void {
+export async function printPaymentTicket(p: TicketData): Promise<void> {
+  // Abrimos la ventana primero (por el gesto del usuario) y luego cargamos el logo.
+  const win = window.open('', '_blank', 'width=340,height=820,menubar=no,toolbar=no');
+  if (!win) {
+    alert('Permití las ventanas emergentes para imprimir el ticket.');
+    return;
+  }
+  win.document.write(
+    '<p style="font:12px monospace;padding:8px;text-align:center">Preparando ticket…</p>',
+  );
+
+  const logo = await getLogoDataUrl();
+
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>Ticket de pago</title>
 <style>
@@ -79,6 +117,7 @@ export function printPaymentTicket(p: TicketData): void {
   html, body { margin: 0; padding: 0; }
   body { width: 78mm; margin: 0 auto; padding: 2mm 1mm; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #000; }
   h1 { font-size: 13px; margin: 1mm 0; text-align: center; }
+  .logo { display: block; margin: 0 auto 1.5mm; max-width: 74%; height: auto; filter: grayscale(1) contrast(1.15); }
   .center { text-align: center; }
   .bold { font-weight: 700; }
   .big { font-size: 13px; }
@@ -90,21 +129,16 @@ export function printPaymentTicket(p: TicketData): void {
   .copy.last { page-break-after: auto; }
   .cut { text-align: center; color: #333; margin: 1mm 0 2mm; letter-spacing: 1px; }
 </style></head><body>
-${copyHtml(p, 'COPIA CLIENTE')}
+${copyHtml(p, 'COPIA CLIENTE', logo)}
 <div class="cut">- - - - - - - - CORTAR AQUÍ - - - - - - - -</div>
-${copyHtml(p, 'COPIA ADMINISTRACION', true)}
+${copyHtml(p, 'COPIA ADMINISTRACION', logo, true)}
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=340,height=800,menubar=no,toolbar=no');
-  if (!win) {
-    alert('Permití las ventanas emergentes para imprimir el ticket.');
-    return;
-  }
   win.document.open();
   win.document.write(html);
   win.document.close();
   win.focus();
   setTimeout(() => {
     win.print();
-  }, 150);
+  }, 250);
 }

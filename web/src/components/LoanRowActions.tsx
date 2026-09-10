@@ -132,7 +132,7 @@ export default function LoanRowActions({
       amount: value,
       paymentType: payType,
     });
-    printPaymentTicket(created as unknown as TicketData);
+    void printPaymentTicket(created as unknown as TicketData);
     setInfo('Pago registrado. Queda pendiente de aprobación del administrador.');
     setAmount('');
   });
