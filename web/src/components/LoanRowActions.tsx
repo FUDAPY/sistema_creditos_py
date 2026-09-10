@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { api, apiPatch, apiPost } from '../lib/api';
 import { printPaymentTicket, type TicketData } from '../lib/ticket';
-import { money } from '../lib/format';
+import { dateInputToMs, localTodayInput, money } from '../lib/format';
 
 export interface LoanLite {
   id: string;
@@ -33,7 +33,6 @@ interface CollectorRow { uid: string; name: string; role?: string; }
 
 const fmt = (v?: number) => money(v);
 const toDateInput = (t?: number) => (t ? new Date(t).toISOString().slice(0, 10) : '');
-const dateInputMs = (v: string) => (v ? new Date(`${v}T12:00:00`).getTime() : 0);
 const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm';
 const labelCls = 'mb-1 block text-xs font-medium text-slate-500';
 
@@ -73,6 +72,8 @@ export default function LoanRowActions({
   // Cobro
   const [amount, setAmount] = useState('');
   const [payType, setPayType] = useState<'MIXED' | 'CAPITAL' | 'INTEREST'>('MIXED');
+  /** Fecha REAL del cobro (calendario). Default: hoy. */
+  const [payDate, setPayDate] = useState(localTodayInput());
 
   // Administrar / editar
   const [collectors, setCollectors] = useState<CollectorRow[]>([]);
@@ -94,7 +95,10 @@ export default function LoanRowActions({
     if (!mode || mode === 'none') return;
     setInfo('');
     setError('');
-    if (mode === 'cobro') setPayType(isNoInterestType ? 'CAPITAL' : 'MIXED');
+    if (mode === 'cobro') {
+      setPayType(isNoInterestType ? 'CAPITAL' : 'MIXED');
+      setPayDate(localTodayInput());
+    }
   }, [mode]);
 
   useEffect(() => {
@@ -131,14 +135,19 @@ export default function LoanRowActions({
   const doCobro = guard(async () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) throw new Error('Ingresá un monto válido.');
+    const paidAt = dateInputToMs(payDate);
+    if (!paidAt) throw new Error('Indicá la fecha del cobro.');
+    if (paidAt > Date.now() + 60 * 1000) throw new Error('La fecha del cobro no puede ser futura.');
     const created = await apiPost<Record<string, unknown>>('/payments', {
       loanId: loan.id,
       amount: value,
       paymentType: payType,
+      paidAt,
     });
     void printPaymentTicket(created as unknown as TicketData);
     setInfo('Pago registrado. Queda pendiente de aprobación del administrador.');
     setAmount('');
+    setPayDate(localTodayInput());
   });
 
   const doEditar = guard(async () => {
@@ -147,8 +156,8 @@ export default function LoanRowActions({
     await apiPatch(`/loans/${loan.id}`, {
       principal: Number(edit.principal) || 0,
       interestRate: Number(edit.interestRate) || 0,
-      grantedAt: dateInputMs(edit.grantedAt) || loan.grantedAt,
-      expiresAt: dateInputMs(edit.expiresAt) || loan.expiresAt,
+      grantedAt: dateInputToMs(edit.grantedAt) || loan.grantedAt,
+      expiresAt: dateInputToMs(edit.expiresAt) || loan.expiresAt,
       collectorId: collector.uid,
       collectorName: collector.name,
     });
@@ -164,6 +173,10 @@ export default function LoanRowActions({
 
   const doFreeze = guard(async () => {
     await apiPost<{ success: boolean }>(`/loans/${loan.id}/freeze`);
+  });
+
+  const doUnfreeze = guard(async () => {
+    await apiPost<{ success: boolean }>(`/loans/${loan.id}/unfreeze`);
   });
 
   const doInforconf = guard(async () => {
@@ -238,6 +251,22 @@ export default function LoanRowActions({
                 </p>
               )}
             </fieldset>
+            <div>
+              <label className={labelCls}>📅 Fecha del cobro</label>
+              <input
+                type="date"
+                required
+                max={localTodayInput()}
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                className={inputCls}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {payDate && payDate !== localTodayInput()
+                  ? 'Registro con fecha distinta a hoy (retroactivo).'
+                  : 'Por defecto: hoy.'}
+              </p>
+            </div>
             <div>
               <label className={labelCls}>Monto</label>
               <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className={inputCls} />
@@ -367,10 +396,16 @@ export default function LoanRowActions({
               <section className="rounded-xl border border-rose-100 bg-rose-50/50 p-3">
                 <h4 className="mb-2 text-xs font-semibold uppercase text-rose-500">Acciones administrativas</h4>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {loan.status === 'ACTIVE' && (
+                  {loan.status === 'ACTIVE' && loan.loanType !== 'CONGELADO' && (
                     <button onClick={() => void doFreeze()} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-left hover:border-teal-400">
                       <span className="font-semibold text-slate-700">❄ Congelar crédito</span>
-                      <span className="block text-xs text-slate-500">Detiene el cómputo de intereses y moras.</span>
+                      <span className="block text-xs text-slate-500">Elimina la mora y deja fijo el interés inicial (20%).</span>
+                    </button>
+                  )}
+                  {(loan.status === 'FROZEN' || loan.status === 'CONGELADO' || loan.loanType === 'CONGELADO') && (
+                    <button onClick={() => void doUnfreeze()} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-left hover:border-teal-400">
+                      <span className="font-semibold text-slate-700">▶ Reactivar crédito</span>
+                      <span className="block text-xs text-slate-500">Vuelve a activo y reanuda el ciclo (sin mora del período congelado).</span>
                     </button>
                   )}
                   {!loan.inforconfConfirmedAt && loan.status === 'ACTIVE' && (

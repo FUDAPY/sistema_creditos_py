@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api, apiPost } from '../lib/api';
+import { dateInputToMs, localTodayInput } from '../lib/format';
 
 interface LoanRow {
   id: string;
@@ -22,6 +23,8 @@ export default function PagoRapido() {
   const [search, setSearch] = useState('');
   const [loanId, setLoanId] = useState('');
   const [amount, setAmount] = useState('');
+  /** Fecha REAL del cobro (la elige el cobrador con el calendario). Default: hoy. */
+  const [paidAt, setPaidAt] = useState(localTodayInput());
   const [type, setType] = useState<'CAPITAL' | 'INTEREST' | 'MIXED'>('MIXED');
   const [info, setInfo] = useState('');
   const [error, setError] = useState('');
@@ -37,7 +40,7 @@ export default function PagoRapido() {
     const q = search.trim().toLocaleLowerCase('es');
     return loans.filter(
       (l) =>
-        l.status === 'ACTIVE' &&
+        ['ACTIVE', 'FROZEN', 'CONGELADO'].includes(l.status || '') &&
         (!q || `${l.clientName || ''} ${l.clientDocumentId || ''}`.toLocaleLowerCase('es').includes(q)),
     );
   }, [loans, search]);
@@ -62,13 +65,31 @@ export default function PagoRapido() {
       setError('Seleccione un crédito e indique un monto válido.');
       return;
     }
+    const paidAtMs = dateInputToMs(paidAt);
+    if (!paidAtMs) {
+      setError('Indique la fecha del cobro.');
+      return;
+    }
+    if (paidAtMs > Date.now() + 60 * 1000) {
+      setError('La fecha del cobro no puede ser futura.');
+      return;
+    }
     setBusy(true);
     try {
-      await apiPost<Record<string, unknown>>('/payments', { loanId, amount: value, paymentType: type });
-      setInfo('Pago registrado. Quedará pendiente de aprobación del administrador para impactar en el saldo.');
+      await apiPost<Record<string, unknown>>('/payments', {
+        loanId,
+        amount: value,
+        paymentType: type,
+        paidAt: paidAtMs,
+      });
+      const fechaTxt = new Intl.DateTimeFormat('es-PY').format(new Date(paidAtMs));
+      setInfo(
+        `Pago registrado con fecha de cobro ${fechaTxt}. Quedará pendiente de aprobación del administrador para impactar en el saldo.`,
+      );
       setAmount('');
       setSearch('');
       setLoanId('');
+      setPaidAt(localTodayInput());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar el pago.');
     } finally {
@@ -126,7 +147,23 @@ export default function PagoRapido() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">📅 Fecha del cobro</label>
+              <input
+                type="date"
+                required
+                max={localTodayInput()}
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {paidAt && paidAt !== localTodayInput()
+                  ? 'Cobro con fecha distinta a hoy (registro retroactivo).'
+                  : 'Por defecto: hoy. Cambiala si el cobro fue otro día.'}
+              </p>
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Monto (Gs.)</label>
               <input

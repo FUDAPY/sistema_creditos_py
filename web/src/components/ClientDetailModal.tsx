@@ -22,6 +22,9 @@ interface ClientLoan {
   totalAmount?: number;
   paidAmount?: number;
   currentBalance?: number;
+  interestDue?: number;
+  lateFeeDue?: number;
+  totalDue?: number;
   status?: string;
   expiresAt?: number;
   approvalStatus?: string;
@@ -48,8 +51,11 @@ export default function ClientDetailModal({ clientId, onClose }: { clientId: str
       .catch(() => undefined);
   }, [clientId]);
 
-  const activos = loans.filter((l) => l.status === 'ACTIVE' && l.approvalStatus !== 'PENDING');
-  const adeudado = loans.reduce((acc, l) => acc + (l.currentBalance ?? 0), 0);
+  const VIGENTES = ['ACTIVE', 'FROZEN', 'CONGELADO'];
+  const activos = loans.filter((l) => VIGENTES.includes(l.status || '') && l.approvalStatus !== 'PENDING');
+  // Saldo real = capital + interés + mora (la API ya entrega totalDue calculado;
+  // un crédito congelado queda con su interés inicial y mora 0).
+  const adeudado = loans.reduce((acc, l) => acc + (l.totalDue ?? l.currentBalance ?? 0), 0);
   const abonado = loans.reduce((acc, l) => acc + (l.paidAmount ?? 0), 0);
   return (
     <>
@@ -94,6 +100,8 @@ export default function ClientDetailModal({ clientId, onClose }: { clientId: str
                   <tr>
                     <th className="px-3 py-2">Crédito</th>
                     <th className="px-3 py-2 text-right">Capital</th>
+                    <th className="px-3 py-2 text-right">Interés</th>
+                    <th className="px-3 py-2 text-right">Mora</th>
                     <th className="px-3 py-2 text-right">Abonado</th>
                     <th className="px-3 py-2 text-right">Saldo</th>
                     <th className="px-3 py-2">Vence</th>
@@ -113,8 +121,10 @@ export default function ClientDetailModal({ clientId, onClose }: { clientId: str
                         </button>
                       </td>
                       <td className="px-3 py-2 text-right">{fmt(l.principal)}</td>
+                      <td className="px-3 py-2 text-right text-amber-600">{fmt(l.interestDue)}</td>
+                      <td className="px-3 py-2 text-right text-rose-600">{fmt(l.lateFeeDue)}</td>
                       <td className="px-3 py-2 text-right text-emerald-600">{fmt(l.paidAmount)}</td>
-                      <td className="px-3 py-2 text-right font-semibold">{fmt(l.currentBalance)}</td>
+                      <td className="px-3 py-2 text-right font-semibold">{fmt(l.totalDue ?? l.currentBalance)}</td>
                       <td className="px-3 py-2">{fmtDate(l.expiresAt)}</td>
                       <td className="px-3 py-2">{STATUS_LABEL[l.status || ''] || l.status}</td>
                     </tr>

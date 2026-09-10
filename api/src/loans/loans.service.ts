@@ -13,6 +13,7 @@ import {
   normalizePrincipalBalance,
   accrueLoanState,
   calculateDaysLate,
+  isFrozenLoan,
 } from './loan.utils';
 import type {
   CreateLoanDto,
@@ -112,13 +113,16 @@ export class LoansService {
 
     // Saldos calculados (tiempo real): Saldo = Capital + Interés + Mora (− abonos ya aplicados
     // a capital/interest). El motor existente (accrueLoanState) expone esos componentes.
+    // Los créditos CONGELADOS también se calculan en vivo: el motor les deja el interés
+    // inicial (20%) y les fuerza mora 0 con 0 ciclos nuevos.
     const noInterestTypes = new Set(['CELULAR', 'ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS']);
     for (const row of publicRows) {
       const status = String(row.status || '');
       const approval = String(row.approvalStatus || '');
       const loanType = String(row.loanType || '');
       const noInterest = noInterestTypes.has(loanType);
-      const liveActive = status === 'ACTIVE' && approval === 'APPROVED';
+      const frozen = isFrozenLoan(row as never);
+      const liveActive = (status === 'ACTIVE' || frozen) && approval === 'APPROVED';
 
       if (liveActive) {
         const accrued = accrueLoanState(row as never);
@@ -126,6 +130,7 @@ export class LoansService {
         row.interestDue = Math.round(noInterest ? 0 : accrued.accruedInterestBalance);
         row.lateFeeDue = Math.round(noInterest ? 0 : accrued.accruedLateFeeBalance);
         row.totalDue = Math.round(accrued.principalBalance + (row.interestDue as number) + (row.lateFeeDue as number));
+        row.isFrozen = frozen;
       } else {
         const persistedInterest = Number(row.accruedInterestBalance || 0);
         const persistedLateFee = Number(row.accruedLateFeeBalance || 0);
@@ -541,17 +546,103 @@ export class LoansService {
     });
   }
 
+  /**
+   * CONGELAR un crédito (solo ADMIN) — regla de negocio:
+   * - ELIMINA la mora devengada (queda en 0 y no vuelve a generarse mientras esté congelado).
+   * - DEJA el interés inicial pactado (20% por defecto) fijo, ya neto de lo cobrado a interés.
+   * - No suma ciclos nuevos.
+   * Persiste los saldos para que fichas, tickets y reportes coincidan con la API.
+   */
   async freeze(companyId: string, loanId: string, actor: RequestUser): Promise<void> {
     const now = Date.now();
+    const loan = await this.loanModel.findOne({ _id: loanId, companyId }).exec();
+    if (!loan) throw new NotFoundException('El credito no existe.');
+    if (isFrozenLoan(loan as never)) throw new BadRequestException('El credito ya esta congelado.');
+    if (loan.status === 'PAID' || loan.status === 'ANULADO') {
+      throw new BadRequestException('No se puede congelar un credito pagado o anulado.');
+    }
+
+    // Mora devengada antes de congelar: queda registrada en la auditoría como "eliminada".
+    const before = accrueLoanState(loan as never, now);
+    const moraEliminada = Math.round(before.accruedLateFeeBalance);
+
+    const initialInterest = Math.round(
+      calculateInterestAmount({
+        principal: Number(loan.principal) || 0,
+        interestRate: Number(loan.interestRate) >= 0 ? Number(loan.interestRate) : DEFAULT_INTEREST_RATE,
+        loanType: loan.loanType as never,
+      }),
+    );
+    const paidToInterest = Math.max(0, Number(loan.interestPaidAmount) || 0);
+    const interestPending = Math.max(0, initialInterest - paidToInterest);
+    const principalPending = Math.round(normalizePrincipalBalance(loan));
+
     const res = await this.loanModel
-      .updateOne({ _id: loanId, companyId }, { $set: { status: 'FROZEN', updatedAt: now } })
+      .updateOne(
+        { _id: loanId, companyId },
+        {
+          $set: {
+            status: 'FROZEN',
+            accruedInterestBalance: interestPending,
+            accruedLateFeeBalance: 0,
+            interestAtFreeze: initialInterest,
+            moraEliminada,
+            frozenAt: now,
+            frozenBy: actor.uid,
+            frozenByName: actor.name,
+            unFrozenAt: null,
+            saldoDefinitivo: Math.round(principalPending + interestPending),
+            updatedAt: now,
+          },
+        },
+      )
       .exec();
     if (res.matchedCount === 0) throw new NotFoundException('El credito no existe.');
     await this.audit.log({
       action: 'FREEZE',
       entity: 'LOAN',
       entityId: loanId,
-      details: 'Credito congelado por el administrador',
+      details: {
+        regla: 'Mora eliminada; queda solo el interes inicial',
+        interesInicial: initialInterest,
+        interesPendiente: interestPending,
+        moraEliminada,
+        capitalPendiente: principalPending,
+      },
+      actor,
+    });
+  }
+
+  /**
+   * REACTIVAR un crédito congelado (solo ADMIN): vuelve a ACTIVE y reanuda el ciclo
+   * desde la fecha de reactivación (el período congelado no genera mora).
+   */
+  async unfreeze(companyId: string, loanId: string, actor: RequestUser): Promise<void> {
+    const now = Date.now();
+    const loan = await this.loanModel.findOne({ _id: loanId, companyId }).exec();
+    if (!loan) throw new NotFoundException('El credito no existe.');
+    if (!isFrozenLoan(loan as never)) throw new BadRequestException('El credito no esta congelado.');
+    if (loan.status === 'PAID' || loan.status === 'ANULADO') {
+      throw new BadRequestException('El credito no se puede reactivar en su estado actual.');
+    }
+
+    const cycleDays = getLoanCycleDays(loan as never);
+    const nextDueDate = now + cycleDays * 24 * 60 * 60 * 1000;
+    const res = await this.loanModel
+      .updateOne(
+        { _id: loanId, companyId },
+        {
+          $set: { status: 'ACTIVE', nextDueDate, lastAccruedAt: now, unFrozenAt: now, updatedAt: now },
+          $unset: { frozenAt: '', frozenBy: '', frozenByName: '' },
+        },
+      )
+      .exec();
+    if (res.matchedCount === 0) throw new NotFoundException('El credito no existe.');
+    await this.audit.log({
+      action: 'UNFREEZE',
+      entity: 'LOAN',
+      entityId: loanId,
+      details: { mensaje: 'Credito reactivado', nextDueDate, cycleDays },
       actor,
     });
   }
@@ -605,6 +696,87 @@ export class LoansService {
       details: { from: loan.collectorName, to: changes.collectorName, reason: 'Redirected by admin' },
       actor,
     });
+  }
+
+  /**
+   * Mantenimiento (solo ADMIN): recomputa los créditos YA CONGELADOS con la regla vigente
+   * (mora eliminada + interés inicial pactado, 20% por defecto) y persiste los saldos para
+   * que fichas, reportes y reversiones coincidan con la API.
+   * - Dry-run por defecto (apply=false): solo informa qué cambiaría.
+   */
+  async recalcFrozenLoans(
+    companyId: string,
+    apply: boolean,
+    actor: RequestUser,
+  ): Promise<{
+    apply: boolean;
+    scanned: number;
+    affected: number;
+    changes: Array<Record<string, unknown>>;
+  }> {
+    const now = Date.now();
+    const docs = await this.loanModel
+      .find({ companyId, status: { $in: ['FROZEN', 'CONGELADO'] } })
+      .exec();
+
+    const changes: Array<Record<string, unknown>> = [];
+    for (const loan of docs) {
+      const loanId = String(loan._id);
+      const principal = Number(loan.principal) || 0;
+      const initialInterest = Math.round(
+        calculateInterestAmount({
+          principal,
+          interestRate: Number(loan.interestRate) >= 0 ? Number(loan.interestRate) : DEFAULT_INTEREST_RATE,
+          loanType: loan.loanType as never,
+        }),
+      );
+      const paidToInterest = Math.max(0, Number(loan.interestPaidAmount) || 0);
+      const interestPending = Math.max(0, initialInterest - paidToInterest);
+      const principalPending = Math.round(normalizePrincipalBalance(loan));
+      const before = {
+        interest: Math.round(Number(loan.accruedInterestBalance) || 0),
+        lateFee: Math.round(Number(loan.accruedLateFeeBalance) || 0),
+      };
+      if (before.interest === interestPending && before.lateFee === 0) continue;
+
+      changes.push({
+        loanId,
+        clientName: (loan as unknown as { clientName?: string }).clientName || '',
+        loanType: loan.loanType,
+        before,
+        after: { interest: interestPending, lateFee: 0 },
+      });
+
+      if (apply) {
+        await this.loanModel
+          .updateOne(
+            { _id: loanId, companyId },
+            {
+              $set: {
+                accruedInterestBalance: interestPending,
+                accruedLateFeeBalance: 0,
+                interestAtFreeze: initialInterest,
+                moraEliminada: before.lateFee,
+                saldoDefinitivo: Math.round(principalPending + interestPending),
+                updatedAt: now,
+              },
+            },
+          )
+          .exec();
+      }
+    }
+
+    if (apply && changes.length > 0) {
+      await this.audit.log({
+        action: 'RECALC_FROZEN',
+        entity: 'LOAN',
+        entityId: 'batch',
+        details: { affected: changes.length },
+        actor,
+      });
+    }
+
+    return { apply, scanned: docs.length, affected: changes.length, changes };
   }
 
   /**

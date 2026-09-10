@@ -180,6 +180,17 @@ export class PaymentsService {
       );
     }
     const paidAt = dto.paidAt || now;
+    // Fecha real del cobro (la elige el cobrador en el calendario):
+    // no puede ser futura ni anterior al otorgamiento del crédito.
+    if (paidAt > now + 60 * 1000) {
+      throw new BadRequestException('La fecha del cobro no puede ser futura.');
+    }
+    const grantedAt = Number((loan as unknown as { grantedAt?: number }).grantedAt) || 0;
+    if (grantedAt > 0 && paidAt < grantedAt) {
+      throw new BadRequestException(
+        'La fecha del cobro no puede ser anterior a la fecha de otorgamiento del crédito.',
+      );
+    }
     const commissionRate = 0.07; // comision por recibo (misma base del sistema original)
 
     // Proyección del impacto (el ADMIN recalcula al aprobar): alimenta el ticket
@@ -364,12 +375,13 @@ export class PaymentsService {
     const principalApplied = splits.principalApplied;
     const interestApplied = splits.interestApplied;
     const lateFeeApplied = splits.lateFeeApplied;
-    const newStatus =
-      loan.status === 'FROZEN'
-        ? 'FROZEN'
-        : finalPrincipalBalance <= 0 && finalInterestBalance <= 0 && finalLateFeeBalance <= 0
-          ? 'PAID'
-          : 'ACTIVE';
+    const frozenStatus =
+      loan.status === 'FROZEN' || loan.status === 'CONGELADO' ? String(loan.status) : '';
+    const newStatus = frozenStatus
+      ? frozenStatus
+      : finalPrincipalBalance <= 0 && finalInterestBalance <= 0 && finalLateFeeBalance <= 0
+        ? 'PAID'
+        : 'ACTIVE';
     const finalNextDueDate = loan.expiresAt || now;
     const lastAccruedAt = accrued.lastAccruedAt;
     const pendingBeforeApproval = loan.totalPendienteAprobacion || 0;
@@ -582,8 +594,8 @@ export class PaymentsService {
       (loan.accruedLateFeeBalance || 0) + lateFeeApplied,
     );
     const revertedStatus =
-      loan.status === 'FROZEN'
-        ? 'FROZEN'
+      loan.status === 'FROZEN' || loan.status === 'CONGELADO'
+        ? String(loan.status)
         : revertedPrincipalBalance <= 0 &&
             revertedInterestBalance <= 0 &&
             revertedLateFeeBalance <= 0
@@ -839,7 +851,10 @@ export class PaymentsService {
                   (loan.accruedInterestBalance || 0) + (payment.interestApplied || 0),
                 accruedLateFeeBalance:
                   (loan.accruedLateFeeBalance || 0) + (payment.arrearsApplied || 0),
-                status: loan.status === 'FROZEN' ? 'FROZEN' : 'ACTIVE',
+                status:
+                  loan.status === 'FROZEN' || loan.status === 'CONGELADO'
+                    ? String(loan.status)
+                    : 'ACTIVE',
                 updatedAt: now,
               },
             },

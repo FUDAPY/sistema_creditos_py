@@ -19,6 +19,8 @@ const startUtc = (t: number) => {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 const mora = (l: LoanRow) => {
+  // Congelado: la mora se eliminó, solo queda el interés inicial.
+  if (l.status === 'FROZEN' || l.status === 'CONGELADO') return 0;
   if (l.status === 'PAID' || l.status === 'ANULADO' || l.approvalStatus !== 'APPROVED') return 0;
   const due = l.nextDueDate || l.expiresAt;
   return due ? Math.max(0, Math.floor((startUtc(Date.now()) - startUtc(due)) / DAY)) : 0;

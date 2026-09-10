@@ -44,9 +44,15 @@ export const NO_INTEREST_LOAN_TYPES: LoanType[] = [
 export const loanTypeUsesInitialInterest = (loanType?: LoanType) =>
   loanType !== 'ALQUILER_INMUEBLE' &&
   loanType !== 'PRESTACION_SERVICIOS' &&
-  loanType !== 'CONGELADO' &&
   loanType !== 'CELULAR';
 
+/**
+ * Congelar un crédito NO borra el interés del negocio:
+ * - Se ELIMINA la mora (punitorio diario) -> 0.
+ * - Se DEJA el interés inicial pactado (20% por defecto) tal cual, sin sumar ciclos.
+ * Sólo los tipos que por definición no generan interés (Celular / Alquiler / Prestación)
+ * quedan en 0.
+ */
 export const loanTypeStartsFrozen = (loanType?: LoanType) => loanType === 'PRESTACION_SERVICIOS';
 
 /**
@@ -88,8 +94,13 @@ export const isStandardCredit = (loan: { loanType?: LoanType; status?: unknown }
   loan.status !== 'FROZEN' &&
   loan.status !== 'CONGELADO';
 
+/**
+ * Interés INICIAL del crédito = principal * (tasa/100)  (20% por defecto).
+ * No depende de la cantidad de ciclos: es el monto fijo pactado al otorgar.
+ * Un crédito CONGELADO conserva este interés (solo deja de sumar ciclos y mora).
+ */
 export const calculateInterestAmount = (loan: LoanLike): number => {
-  if (!loanTypeUsesInitialInterest(loan.loanType) || isFrozenLoan(loan)) return 0;
+  if (!loanTypeUsesInitialInterest(loan.loanType)) return 0;
   const rate = loan.interestRate >= 0 ? loan.interestRate : DEFAULT_INTEREST_RATE;
   return Math.round(loan.principal * (rate / 100));
 };

@@ -111,6 +111,17 @@ export class LoansController {
     return { success: true };
   }
 
+  /** Reactiva un crédito congelado (reanuda el ciclo sin mora del período congelado). */
+  @Roles('ADMIN')
+  @Post(':id/unfreeze')
+  async unfreeze(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ): Promise<{ success: boolean }> {
+    await this.loansService.unfreeze(user.companyId, id, user);
+    return { success: true };
+  }
+
   @Roles('ADMIN')
   @Post(':id/redirect')
   async redirect(
@@ -141,6 +152,13 @@ export class LoansController {
   @Post('maintenance/recalc-no-interest')
   recalcNoInterest(@CurrentUser() user: RequestUser, @Query('apply') apply?: string) {
     return this.loansService.recalcNoInterestLoans(user.companyId, apply === 'true', user);
+  }
+
+  /** Recomputa los créditos congelados (mora 0 + interés inicial). Dry-run por defecto. */
+  @Roles('ADMIN')
+  @Post('maintenance/recalc-frozen')
+  recalcFrozen(@CurrentUser() user: RequestUser, @Query('apply') apply?: string) {
+    return this.loansService.recalcFrozenLoans(user.companyId, apply === 'true', user);
   }
 
   /** Elimina definitivamente un crédito rechazado/pendiente (ADMIN). */
