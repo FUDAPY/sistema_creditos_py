@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -132,7 +132,16 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
           .exec();
         imported += 1;
         // Espejo local cobrable del crédito externo (para el flujo de cobro/rendición).
-        await this.mirrorLoan(system, companyId, row, syncedAt);
+        // Un fallo puntual no debe tumbar toda la sincronización.
+        try {
+          await this.mirrorLoan(system, companyId, row, syncedAt);
+        } catch (mirrorErr) {
+          this.logger.warn(
+            `No se pudo crear espejo local ${system}/${row.externalId}: ${
+              mirrorErr instanceof Error ? mirrorErr.message : String(mirrorErr)
+            }`,
+          );
+        }
       }
 
       return { sistema: system, imported, skipped, total: rows.length, syncedAt } satisfies SyncResult;
@@ -141,6 +150,10 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
     this.running.set(system, run);
     try {
       return await run;
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Sync ${system} falló: ${detail}`);
+      throw new ServiceUnavailableException(`Sincronización ${system} falló: ${detail}`);
     } finally {
       this.running.delete(system);
     }
@@ -169,7 +182,13 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
         _id: id,
         id,
         companyId,
-        clientId: (row as unknown as { clienteJuridicoId?: string }).clienteJuridicoId || '',
+        clientId: (() => {
+          const ext = String(
+            (row as unknown as { clienteJuridicoId?: string }).clienteJuridicoId || '',
+          ).trim();
+          // El schema de Loan exige clientId no vacío: los espejos externos usan un id sintético.
+          return ext.length > 0 ? ext : `externo:${row.externalId}`;
+        })(),
         clientDocumentId: row.cedula || '',
         clientPhone: row.telefono || '',
         clientAddress: row.direccion || '',

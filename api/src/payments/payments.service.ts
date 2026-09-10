@@ -173,7 +173,7 @@ export class PaymentsService {
     // Prestación (congelado, sin intereses) y Alquiler (monto fijo mensual):
     // el cobro es UNICAMENTE capital (no admiten "ambos" ni "interés").
     const loanTypeName = String((loan as unknown as { loanType?: string }).loanType || '');
-    const nonInterestTypes = ['ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS'];
+    const nonInterestTypes = ['CELULAR', 'ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS'];
     if (nonInterestTypes.includes(loanTypeName) && paymentType !== 'CAPITAL') {
       throw new BadRequestException(
         'Este tipo de crédito no genera intereses: el cobro debe imputarse solo a capital (paymentType=CAPITAL).',
@@ -478,11 +478,15 @@ export class PaymentsService {
     const externalSource = (loan as unknown as { externalSource?: string }).externalSource;
     const externalId = (loan as unknown as { externalId?: string }).externalId;
     if (externalSource && externalId) {
+      const appliedToExternal = Math.max(
+        0,
+        Math.round(principalApplied + interestApplied + lateFeeApplied),
+      );
       try {
         await this.integrations.applyExternalPayment(
           externalSource,
           externalId,
-          payment.amount || 0,
+          appliedToExternal > 0 ? appliedToExternal : payment.amount || 0,
           `Recibo ${paymentId}`,
         );
         // eslint-disable-next-line no-console

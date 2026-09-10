@@ -13,6 +13,7 @@ export interface LoanRow {
   clientName?: string;
   clientDocumentId?: string;
   loanType?: string;
+  description?: string;
   principal: number;
   totalAmount?: number;
   paidAmount?: number;
@@ -220,7 +221,9 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
                     </span>
                   ) : (
                     <button
-                      onClick={() => r.clientId && setClientModal(r.clientId)}
+                      onClick={() => {
+                        if (r.clientId && !r.clientId.startsWith('externo:')) setClientModal(r.clientId);
+                      }}
                       className="text-left font-medium text-slate-800 hover:text-teal-700 hover:underline"
                     >
                       {r.clientName || '-'}
@@ -229,7 +232,14 @@ export default function CreditTable({ loans, reload }: { loans: LoanRow[]; reloa
                   {r.clientDocumentId && <p className="text-[10px] text-slate-400">{r.clientDocumentId}</p>}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmtDate(r.grantedAt)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-slate-600">{r.tipoLabel}</td>
+                <td className="px-3 py-2 text-slate-600">
+                  <span className="whitespace-nowrap">{r.tipoLabel}</span>
+                  {r.description && (
+                    <p className="max-w-[220px] truncate text-[10px] text-slate-400" title={r.description}>
+                      {r.description}
+                    </p>
+                  )}
+                </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right text-slate-700">{fmt(r.principal)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmtDate(r.expiresAt)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right text-slate-700">{fmt(r.interest)}</td>

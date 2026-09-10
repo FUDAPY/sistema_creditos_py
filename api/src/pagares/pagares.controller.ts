@@ -19,6 +19,11 @@ export class PagaresController {
     return this.pagaresService.list(user.companyId);
   }
 
+  @Get('resumen')
+  resumen(@CurrentUser() user: RequestUser) {
+    return this.pagaresService.resumen(user.companyId);
+  }
+
   @Get('available/:tomo')
   available(
     @CurrentUser() user: RequestUser,

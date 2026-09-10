@@ -21,6 +21,8 @@ interface PagareRow {
 
 const CUOTAS_RATE: Record<number, number> = { 6: 20, 12: 20, 18: 25, 24: 30 };
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Tipos sin interés ni mora: se cobra únicamente el monto (capital). */
+const NO_INTEREST_TYPES = ['CELULAR', 'ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS'];
 
 const toDateInput = (value?: number) => {
   if (!value) return '';
@@ -47,6 +49,8 @@ export default function LoanForm() {
   const [loanType, setLoanType] = useState<'PRESTAMO' | 'EMPENO' | 'ALQUILER_INMUEBLE' | 'PRESTACION_SERVICIOS' | 'CELULAR'>('PRESTAMO');
   const [currency, setCurrency] = useState<'PYG' | 'USD'>('PYG');
   const [principal, setPrincipal] = useState(0);
+  const [description, setDescription] = useState('');
+  const isNoInterest = NO_INTEREST_TYPES.includes(loanType);
   const [cantidadCuotas, setCantidadCuotas] = useState<number | undefined>(undefined);
   const [cycleDays, setCycleDays] = useState(30);
   const [grantedDate, setGrantedDate] = useState(toDateInput(Date.now()));
@@ -68,9 +72,10 @@ export default function LoanForm() {
   useEffect(loadAll, [loadAll]);
 
   const interestRate = useMemo(() => {
+    if (isNoInterest) return 0;
     if (cantidadCuotas && CUOTAS_RATE[cantidadCuotas] !== undefined) return CUOTAS_RATE[cantidadCuotas];
     return 20;
-  }, [cantidadCuotas]);
+  }, [cantidadCuotas, isNoInterest]);
   const suggestions = useMemo(() => {
     const q = clientText.trim().toLocaleLowerCase('es');
     if (!q) return [];
@@ -106,10 +111,11 @@ export default function LoanForm() {
         principal,
         interestRate,
         cycleDays,
-        cantidadCuotas,
-        planFrecuencia: cantidadCuotas ? 'MENSUAL' : 'ANUAL',
+        cantidadCuotas: isNoInterest ? undefined : cantidadCuotas,
+        planFrecuencia: !isNoInterest && cantidadCuotas ? 'MENSUAL' : 'ANUAL',
         grantedAt,
         expiresAt,
+        description: description.trim() || undefined,
         tomo: tomo || undefined,
         hasPagare: Boolean(tomo),
       });
@@ -201,16 +207,27 @@ export default function LoanForm() {
           Capital *
           <input required type="number" min={0} value={principal || ''} onChange={(e) => setPrincipal(Number(e.target.value))} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
         </label>
-        <label className="block text-sm">
-          Plazo (cuotas)
-          <select value={cantidadCuotas ?? 0} onChange={(e) => setCantidadCuotas(Number(e.target.value) || undefined)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-            <option value={0}>A interés simple (sin cuotas)</option>
-            <option value={6}>6 cuotas (20%)</option>
-            <option value={12}>12 cuotas (20%)</option>
-            <option value={18}>18 cuotas (25%)</option>
-            <option value={24}>24 cuotas (30%)</option>
-          </select>
-        </label>
+        {isNoInterest ? (
+          <div className="block text-sm">
+            Plazo
+            <input
+              disabled
+              value="Sin interés — se cobra solo el monto"
+              className="mt-1 w-full rounded border border-slate-200 bg-slate-100 px-2 py-1.5 text-slate-500"
+            />
+          </div>
+        ) : (
+          <label className="block text-sm">
+            Plazo (cuotas)
+            <select value={cantidadCuotas ?? 0} onChange={(e) => setCantidadCuotas(Number(e.target.value) || undefined)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
+              <option value={0}>A interés simple (sin cuotas)</option>
+              <option value={6}>6 cuotas (20%)</option>
+              <option value={12}>12 cuotas (20%)</option>
+              <option value={18}>18 cuotas (25%)</option>
+              <option value={24}>24 cuotas (30%)</option>
+            </select>
+          </label>
+        )}
         <label className="block text-sm">
           Fecha de otorgamiento
           <input type="date" required value={grantedDate} onChange={(e) => setGrantedDate(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
@@ -219,7 +236,29 @@ export default function LoanForm() {
           Fecha de vencimiento
           <input type="date" required value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
         </label>
-        <p className="col-span-2 text-sm text-slate-600">Tasa de interés aplicada: <b>{interestRate}%</b></p>
+        <label className="col-span-2 block text-sm">
+          Descripción {isNoInterest ? '*' : '(opcional)'}
+          <textarea
+            required={isNoInterest}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder={
+              isNoInterest
+                ? 'Detalle del equipo / inmueble / servicio (se verá en Créditos y Cartera Activa)'
+                : 'Referencia u observaciones'
+            }
+            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
+          />
+        </label>
+        <p className="col-span-2 text-sm text-slate-600">
+          Tasa de interés aplicada: <b>{interestRate}%</b>
+          {isNoInterest && (
+            <span className="ml-2 text-teal-700">
+              Este tipo no genera interés ni mora: se cobra solo el monto (capital).
+            </span>
+          )}
+        </p>
 
         <fieldset className="col-span-2 rounded border border-slate-200 p-3">
           <legend className="px-1 text-sm font-medium">Pagaré (tomo)</legend>

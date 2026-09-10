@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { jsPDF } from 'jspdf';
-import { api, apiPost } from '../lib/api';
+import { api, apiPatch, apiPost } from '../lib/api';
 
 interface PagareRow {
   id: string;
@@ -13,18 +13,34 @@ interface PagareRow {
   asignado?: boolean;
 }
 
+interface PagareResumen {
+  total: number;
+  activos: number;
+  cancelados: number;
+  disponibles: number;
+  asignados: number;
+  porTomo: Array<{ tomo: string; total: number; activos: number; cancelados: number; disponibles: number }>;
+}
+
 export default function Pagares() {
   const [pagares, setPagares] = useState<PagareRow[]>([]);
+  const [resumen, setResumen] = useState<PagareResumen | null>(null);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [tomo, setTomo] = useState('');
   const [cantidad, setCantidad] = useState(5);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState<'' | 'activo' | 'cancelado'>('');
+  const [tomoFiltro, setTomoFiltro] = useState('');
 
   const load = useCallback(() => {
     api<PagareRow[]>('/pagares')
       .then(setPagares)
       .catch((e) => setError(e.message));
+    api<PagareResumen>('/pagares/resumen')
+      .then(setResumen)
+      .catch(() => undefined);
   }, []);
 
   useEffect(load, [load]);
@@ -37,6 +53,20 @@ export default function Pagares() {
     () => pagares.filter((p) => p.estado === 'activo' && !p.asignado).length,
     [pagares],
   );
+
+  /** Buscador global de pagarés (nombre, cédula, tomo, cobrador y monto). */
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('es');
+    return pagares.filter((p) => {
+      if (estadoFiltro && p.estado !== estadoFiltro) return false;
+      if (tomoFiltro && p.tomo !== tomoFiltro) return false;
+      if (!q) return true;
+      const haystack = `${p.nombre || ''} ${p.cedula || ''} ${p.tomo || ''} ${p.cobrador || ''} ${
+        p.monto || 0
+      }`.toLocaleLowerCase('es');
+      return haystack.includes(q);
+    });
+  }, [pagares, query, estadoFiltro, tomoFiltro]);
 
   const createTomo = async () => {
     setError('');
@@ -75,8 +105,12 @@ export default function Pagares() {
 
   const toggle = async (row: PagareRow) => {
     const next = row.estado === 'activo' ? 'cancelado' : 'activo';
-    await apiPost<{ success: boolean }>(`/pagares/${row.id}/status`, { estado: next });
-    load();
+    try {
+      await apiPatch<{ success: boolean }>(`/pagares/${row.id}/status`, { estado: next });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo actualizar el pagaré.');
+    }
   };
 
   const exportPdf = () => {
@@ -87,7 +121,7 @@ export default function Pagares() {
     let y = 26;
     doc.text('Tomo | Nombre | Cedula | Monto | Estado | Cobrador', 14, y);
     y += 6;
-    pagares.forEach((p) => {
+    filtered.forEach((p) => {
       doc.text(
         `${p.tomo} | ${p.nombre || '-'} | ${p.cedula || '-'} | ${p.monto || 0} | ${p.estado} | ${p.cobrador || '-'}`,
         14,
@@ -129,6 +163,58 @@ export default function Pagares() {
         </div>
       </div>
 
+      {/* Contadores exactos (activos / cancelados / disponibles / asignados) */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">Total</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{resumen?.total ?? pagares.length}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm">
+          <p className="text-[11px] uppercase tracking-wide text-emerald-700">Activos</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-700">{resumen?.activos ?? 0}</p>
+        </div>
+        <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4 shadow-sm">
+          <p className="text-[11px] uppercase tracking-wide text-rose-700">Cancelados</p>
+          <p className="mt-1 text-2xl font-bold text-rose-700">{resumen?.cancelados ?? 0}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">Disponibles (libres)</p>
+          <p className="mt-1 text-2xl font-bold text-teal-700">{resumen?.disponibles ?? disponibles}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">Asignados</p>
+          <p className="mt-1 text-2xl font-bold text-slate-700">{resumen?.asignados ?? 0}</p>
+        </div>
+      </div>
+
+      {resumen && resumen.porTomo.length > 0 && (
+        <div className="mb-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Detalle por tomo</p>
+          <table className="w-full text-left text-xs">
+            <thead className="text-[10px] uppercase text-slate-500">
+              <tr>
+                <th className="px-2 py-1.5">Tomo</th>
+                <th className="px-2 py-1.5 text-right">Total</th>
+                <th className="px-2 py-1.5 text-right">Activos</th>
+                <th className="px-2 py-1.5 text-right">Cancelados</th>
+                <th className="px-2 py-1.5 text-right">Libres</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumen.porTomo.map((t) => (
+                <tr key={t.tomo} className="border-t border-slate-100">
+                  <td className="px-2 py-1.5 font-medium text-slate-700">{t.tomo}</td>
+                  <td className="px-2 py-1.5 text-right">{t.total}</td>
+                  <td className="px-2 py-1.5 text-right text-emerald-700">{t.activos}</td>
+                  <td className="px-2 py-1.5 text-right text-rose-700">{t.cancelados}</td>
+                  <td className="px-2 py-1.5 text-right text-teal-700">{t.disponibles}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="mb-4 rounded bg-white p-4 shadow">
         <h3 className="mb-2 text-sm font-semibold">Crear tomo de pagarés</h3>
         <div className="flex flex-wrap items-end gap-3">
@@ -167,6 +253,50 @@ export default function Pagares() {
       {info && <p className="mb-3 text-sm text-green-700">{info}</p>}
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
+      {/* Buscador */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="🔍 Buscar por nombre, cédula, tomo, cobrador o monto…"
+          className="min-w-[240px] flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-teal-400"
+        />
+        <select
+          value={estadoFiltro}
+          onChange={(e) => setEstadoFiltro(e.target.value as '' | 'activo' | 'cancelado')}
+          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+        >
+          <option value="">Estado: todos</option>
+          <option value="activo">Activos</option>
+          <option value="cancelado">Cancelados</option>
+        </select>
+        <select
+          value={tomoFiltro}
+          onChange={(e) => setTomoFiltro(e.target.value)}
+          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+        >
+          <option value="">Tomo: todos</option>
+          {tomos.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-500">
+          Mostrando {filtered.length} de {pagares.length}
+        </span>
+        {(query || estadoFiltro || tomoFiltro) && (
+          <button
+            onClick={() => {
+              setQuery('');
+              setEstadoFiltro('');
+              setTomoFiltro('');
+            }}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
       <div className="overflow-x-auto rounded bg-white shadow">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-100 text-slate-600">
@@ -181,7 +311,7 @@ export default function Pagares() {
             </tr>
           </thead>
           <tbody>
-            {pagares.map((p) => (
+            {filtered.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="px-3 py-1.5">{p.tomo}</td>
                 <td className="px-3 py-1.5">{p.nombre || '-'}</td>
@@ -206,6 +336,13 @@ export default function Pagares() {
                 </td>
               </tr>
             ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                  No se encontraron pagarés para la búsqueda
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

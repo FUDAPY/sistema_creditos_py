@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, apiPost } from '../lib/api';
+import { api, apiDelete, apiPost } from '../lib/api';
 
 interface LoanRow {
   id: string;
@@ -58,19 +58,14 @@ export default function AprobarCreditos() {
     setMsg('');
     try {
       if (sel.length === 0) throw new Error('No hay registros seleccionados.');
-      let reason = '';
-      if (!approve) {
-        reason = window.prompt(`Motivo del rechazo (${sel.length} créditos):`)?.trim() || '';
-        if (!reason) return;
-      }
       await Promise.all(
         sel.map((id) =>
           approve
             ? apiPost<{ success: boolean }>(`/loans/${id}/approve`)
-            : apiPost<{ success: boolean }>(`/loans/${id}/anular`, { reason }),
+            : apiDelete<{ success: boolean }>(`/loans/${id}`),
         ),
       );
-      setMsg(approve ? `${sel.length} créditos aprobados en lote.` : `${sel.length} créditos rechazados.`);
+      setMsg(approve ? `${sel.length} créditos aprobados en lote.` : `${sel.length} créditos rechazados y eliminados.`);
       setSel([]);
       load();
     } catch (e) {
@@ -92,11 +87,9 @@ export default function AprobarCreditos() {
   };
 
   const reject = async (id: string) => {
-    const reason = window.prompt('Motivo del rechazo:')?.trim() || '';
-    if (!reason) return;
     try {
-      await apiPost<{ success: boolean }>(`/loans/${id}/anular`, { reason });
-      setMsg('Crédito rechazado y anulado.');
+      await apiDelete<{ success: boolean }>(`/loans/${id}`);
+      setMsg('Crédito rechazado y eliminado.');
       setError('');
       load();
     } catch (e) {

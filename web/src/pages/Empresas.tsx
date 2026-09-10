@@ -76,7 +76,7 @@ export default function Empresas({ categoria }: { categoria: string }) {
 
   const rows = useMemo(() => {
     if (isExternal) return [];
-    const typeMap: Record<string, string[]> = { creditos: ['PRESTAMO'], alquileres: ['ALQUILER_INMUEBLE'], empenos: ['EMPENO'], prestacion: ['PRESTACION_SERVICIOS'] };
+    const typeMap: Record<string, string[]> = { creditos: ['PRESTAMO', 'CELULAR'], alquileres: ['ALQUILER_INMUEBLE'], empenos: ['EMPENO'], prestacion: ['PRESTACION_SERVICIOS'] };
     return loans.filter((l) => {
       if (typeMap[categoria]) return typeMap[categoria].includes(l.loanType || '');
       return false;

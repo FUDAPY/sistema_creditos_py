@@ -70,6 +70,7 @@ export class LoansService {
     @InjectModel('Loan') private readonly loanModel: Model<LoanDoc>,
     @InjectModel('Client') private readonly clientModel: Model<ClientDoc>,
     @InjectModel('Pagare') private readonly pagareModel: Model<PagareDoc>,
+    @InjectModel('Payment') private readonly paymentModel: Model<Document>,
     private readonly audit: AuditService,
   ) {}
 
@@ -107,7 +108,7 @@ export class LoansService {
 
     // Saldos calculados (tiempo real): Saldo = Capital + Interés + Mora (− abonos ya aplicados
     // a capital/interest). El motor existente (accrueLoanState) expone esos componentes.
-    const noInterestTypes = new Set(['ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS']);
+    const noInterestTypes = new Set(['CELULAR', 'ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS']);
     for (const row of publicRows) {
       const status = String(row.status || '');
       const approval = String(row.approvalStatus || '');
@@ -182,6 +183,7 @@ export class LoansService {
     const interestRate = resolveInterestRate({
       interestRate: data.interestRate,
       cantidadCuotas: data.cantidadCuotas,
+      loanType: data.loanType,
     });
     const loanForCalc = { ...data, interestRate };
     const approvalStatus = actor.role === 'ADMIN' ? 'APPROVED' : 'PENDING';
@@ -596,6 +598,116 @@ export class LoansService {
     });
   }
 
+  /**
+   * Ajuste puntual (solo ADMIN): corrige créditos de tipos SIN interés
+   * (CELULAR / ALQUILER_INMUEBLE / PRESTACION_SERVICIOS) creados antes de la regla 0%
+   * y que quedaron con interés/mora aplicados.
+   * - Dry-run por defecto (apply=false): solo informa qué cambiaría.
+   * - Con apply=true persiste. No toca créditos PAID/ANULADO ni `paidAmount`.
+   */
+  async recalcNoInterestLoans(
+    companyId: string,
+    apply: boolean,
+    actor: RequestUser,
+  ): Promise<{
+    apply: boolean;
+    scanned: number;
+    affected: number;
+    skippedFinalStatus: number;
+    changes: Array<Record<string, unknown>>;
+  }> {
+    const types = ['CELULAR', 'ALQUILER_INMUEBLE', 'PRESTACION_SERVICIOS'];
+    const now = Date.now();
+
+    const skippedFinalStatus = await this.loanModel
+      .countDocuments({ companyId, loanType: { $in: types }, status: { $in: ['PAID', 'ANULADO'] } })
+      .exec();
+
+    const docs = await this.loanModel
+      .find({
+        companyId,
+        loanType: { $in: types },
+        status: { $in: ['ACTIVE', 'FROZEN', 'CONGELADO'] },
+      })
+      .exec();
+
+    const changes: Array<Record<string, unknown>> = [];
+
+    for (const loan of docs) {
+      const loanId = String(loan._id);
+      const principal = Math.round(Number(loan.principal) || 0);
+      const paidAmount = Math.round(Number(loan.paidAmount) || 0);
+      const capitalPendiente = Math.max(0, principal - paidAmount);
+
+      const before = {
+        interestRate: Math.round(Number(loan.interestRate) || 0),
+        totalAmount: Math.round(Number(loan.totalAmount) || 0),
+        currentBalance: Math.round(Number(loan.currentBalance) || 0),
+        accruedInterestBalance: Math.round(Number(loan.accruedInterestBalance) || 0),
+        accruedLateFeeBalance: Math.round(Number(loan.accruedLateFeeBalance) || 0),
+      };
+      const after = {
+        interestRate: 0,
+        totalAmount: principal,
+        currentBalance: capitalPendiente,
+        accruedInterestBalance: 0,
+        accruedLateFeeBalance: 0,
+        saldoInicial: principal,
+        saldoDefinitivo: capitalPendiente,
+        saldoProvisorio: capitalPendiente,
+        nextDueDate: loan.expiresAt ?? loan.nextDueDate ?? now,
+        updatedAt: now,
+      };
+
+      const needsFix =
+        before.interestRate !== 0 ||
+        before.accruedInterestBalance !== 0 ||
+        before.accruedLateFeeBalance !== 0 ||
+        before.totalAmount !== principal ||
+        before.currentBalance !== capitalPendiente;
+      if (!needsFix) continue;
+
+      changes.push({
+        loanId,
+        clientName: (loan as unknown as { clientName?: string }).clientName || '',
+        loanType: loan.loanType,
+        before,
+        after: {
+          interestRate: after.interestRate,
+          totalAmount: after.totalAmount,
+          currentBalance: after.currentBalance,
+          accruedInterestBalance: after.accruedInterestBalance,
+          accruedLateFeeBalance: after.accruedLateFeeBalance,
+        },
+      });
+
+      if (apply) {
+        await this.loanModel
+          .updateOne({ _id: loanId, companyId }, { $set: after })
+          .exec();
+        // Los cobros pendientes de estos créditos pasan a imputar solo capital.
+        await this.paymentModel
+          .updateMany(
+            { companyId, loanId, approvalStatus: 'PENDING', loanImpactApplied: false },
+            { $set: { paymentType: 'CAPITAL', interestApplied: 0, arrearsApplied: 0, updatedAt: now } },
+          )
+          .exec();
+      }
+    }
+
+    if (apply && changes.length > 0) {
+      await this.audit.log({
+        action: 'RECALC_NO_INTEREST_LOANS',
+        entity: 'LOAN',
+        entityId: 'BULK',
+        details: { affected: changes.length, loanType: 'CELULAR/ALQUILER/PRESTACION' },
+        actor,
+      });
+    }
+
+    return { apply, scanned: docs.length, affected: changes.length, skippedFinalStatus, changes };
+  }
+
   async anular(
     companyId: string,
     loanId: string,
@@ -633,6 +745,73 @@ export class LoansService {
       },
       actor,
     });
+
+    // El crédito anulado libera su pagaré (vuelve a estar disponible en su tomo).
+    await this.releasePagare(companyId, loanId);
+  }
+
+  /** Libera el pagaré asociado a un crédito (queda disponible otra vez). */
+  private async releasePagare(companyId: string, loanId: string): Promise<void> {
+    const now = Date.now();
+    await this.pagareModel
+      .updateMany(
+        { companyId, loanId },
+        {
+          $set: {
+            loanId: '',
+            nombre: '',
+            nombreLower: '',
+            cedula: '',
+            cedulaSearch: '',
+            monto: 0,
+            cobrador: '',
+            asignado: false,
+            estado: 'activo',
+            updatedAt: now,
+          },
+          $unset: { entregadoAt: '', entregadoBy: '', entregadoByName: '' },
+        },
+      )
+      .exec();
+  }
+
+  /**
+   * Elimina un crédito rechazado/pendiente. Regla: si ya tiene pagos aplicados
+   * debe anularse (no eliminarse). También limpia pagos pendientes sin impacto
+   * y libera el pagaré asociado.
+   */
+  async remove(companyId: string, loanId: string, actor: RequestUser): Promise<void> {
+    const loan = await this.loanModel.findOne({ _id: loanId, companyId }).exec();
+    if (!loan) throw new NotFoundException('El crédito no existe.');
+    if ((loan.paidAmount || 0) > 0) {
+      throw new BadRequestException(
+        'El crédito tiene pagos aplicados: debe anularse, no eliminarse.',
+      );
+    }
+
+    const now = Date.now();
+    // Pagos pendientes que nunca impactaron el saldo (no son histórico contable).
+    await this.paymentModel
+      .deleteMany({ companyId, loanId, loanImpactApplied: false })
+      .exec();
+
+    await this.releasePagare(companyId, loanId);
+
+    await this.loanModel.deleteOne({ _id: loanId, companyId }).exec();
+
+    await this.audit.log({
+      action: 'DELETE_LOAN',
+      entity: 'LOAN',
+      entityId: loanId,
+      details: {
+        clientId: loan.clientId,
+        clientName: (loan as unknown as { clientName?: string }).clientName,
+        principal: loan.principal,
+        reason: 'Crédito rechazado/eliminado por el administrador',
+      },
+      actor,
+    });
+    void now;
   }
 }
 

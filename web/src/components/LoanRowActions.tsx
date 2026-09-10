@@ -13,6 +13,7 @@ export interface LoanLite {
   interestRate?: number;
   totalAmount?: number;
   currentBalance?: number;
+  description?: string;
   principalBalance?: number;
   interestDue?: number;
   lateFeeDue?: number;
@@ -49,7 +50,10 @@ export default function LoanRowActions({
   onShowHistory: () => void;
 }) {
   // Prestación (congelado) y Alquiler (monto fijo): no generan intereses -> solo cobro de capital.
-  const isNoInterestType = loan.loanType === 'PRESTACION_SERVICIOS' || loan.loanType === 'ALQUILER_INMUEBLE';
+  const isNoInterestType =
+    loan.loanType === 'CELULAR' ||
+    loan.loanType === 'PRESTACION_SERVICIOS' ||
+    loan.loanType === 'ALQUILER_INMUEBLE';
   const payOptions: Array<{ value: 'MIXED' | 'CAPITAL' | 'INTEREST'; label: string; hint: string }> = [
     { value: 'MIXED', label: 'Cobrar ambos', hint: 'Impacta proporcionalmente en capital e interés (primero mora).' },
     { value: 'CAPITAL', label: 'Cobrar capital', hint: 'Impacta únicamente en el saldo de capital.' },
@@ -283,6 +287,13 @@ export default function LoanRowActions({
                 <p className="font-bold text-rose-600">{fmt(saldoActual)}</p>
               </div>
             </div>
+
+            {loan.description && (
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <span className="text-slate-400">Descripción: </span>
+                {loan.description}
+              </p>
+            )}
 
             <button onClick={() => { setMode('none'); onShowHistory(); }} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-teal-400">
               <span className="font-semibold text-slate-700">Ver / editar abonos</span>

@@ -11,6 +11,7 @@ interface LoanRow {
   totalAmount: number;
   principal: number;
   totalDue?: number;
+  description?: string;
   status?: string;
   approvalStatus?: string;
 }
@@ -48,7 +49,10 @@ export default function PagoRapido() {
   const selected = loans.find((l) => l.id === loanId);
 
   // Prestación (congelado) y Alquiler (monto fijo): solo admiten cobro de capital.
-  const fixedCapitalOnly = Boolean(selected && ['PRESTACION_SERVICIOS', 'ALQUILER_INMUEBLE'].includes(selected.loanType || ''));
+  const fixedCapitalOnly = Boolean(
+    selected &&
+      ['CELULAR', 'PRESTACION_SERVICIOS', 'ALQUILER_INMUEBLE'].includes(selected.loanType || ''),
+  );
   useEffect(() => {
     if (fixedCapitalOnly) setType('CAPITAL');
   }, [fixedCapitalOnly]);
@@ -117,6 +121,12 @@ export default function PagoRapido() {
             <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
               Saldo actual: <b>Gs. {fmt((selected.totalDue ?? selected.currentBalance) || 0)}</b> · Capital: Gs.{' '}
               {fmt(selected.principal || 0)}
+              {selected.description && (
+                <p className="mt-1 text-xs text-slate-500">
+                  <span className="text-slate-400">Descripción: </span>
+                  {selected.description}
+                </p>
+              )}
             </div>
           )}
 

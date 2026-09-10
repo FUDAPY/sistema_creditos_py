@@ -34,8 +34,18 @@ export const getLoanCycleDays = (
   return derived > 0 ? derived : DEFAULT_CYCLE_DAYS;
 };
 
+/** Tipos que NO generan interés ni mora (se cobra solo capital / monto fijo). */
+export const NO_INTEREST_LOAN_TYPES: LoanType[] = [
+  'CELULAR',
+  'ALQUILER_INMUEBLE',
+  'PRESTACION_SERVICIOS',
+];
+
 export const loanTypeUsesInitialInterest = (loanType?: LoanType) =>
-  loanType !== 'ALQUILER_INMUEBLE' && loanType !== 'PRESTACION_SERVICIOS' && loanType !== 'CONGELADO';
+  loanType !== 'ALQUILER_INMUEBLE' &&
+  loanType !== 'PRESTACION_SERVICIOS' &&
+  loanType !== 'CONGELADO' &&
+  loanType !== 'CELULAR';
 
 export const loanTypeStartsFrozen = (loanType?: LoanType) => loanType === 'PRESTACION_SERVICIOS';
 
@@ -54,9 +64,12 @@ export const INTEREST_RATE_BY_CUOTAS: Record<number, number> = {
 export interface InterestRateInput {
   interestRate?: number | null;
   cantidadCuotas?: number | null;
+  loanType?: LoanType | null;
 }
 
 export const resolveInterestRate = (input: InterestRateInput): number => {
+  // Celular / Alquiler / Prestación: SIEMPRE 0% (solo el monto).
+  if (input.loanType && NO_INTEREST_LOAN_TYPES.includes(input.loanType)) return 0;
   if (input.cantidadCuotas && INTEREST_RATE_BY_CUOTAS[input.cantidadCuotas] !== undefined) {
     return INTEREST_RATE_BY_CUOTAS[input.cantidadCuotas];
   }
@@ -71,7 +84,7 @@ export const isFrozenLoan = (loan: { loanType?: LoanType; status?: unknown }) =>
   loan.status === 'FROZEN' || loan.status === 'CONGELADO' || loan.loanType === 'CONGELADO';
 
 export const isStandardCredit = (loan: { loanType?: LoanType; status?: unknown }) =>
-  (loan.loanType === 'PRESTAMO' || loan.loanType === 'CELULAR') &&
+  loan.loanType === 'PRESTAMO' &&
   loan.status !== 'FROZEN' &&
   loan.status !== 'CONGELADO';
 

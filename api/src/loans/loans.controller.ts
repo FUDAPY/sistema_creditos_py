@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -126,6 +127,27 @@ export class LoansController {
     @Body() dto: AnularLoanDto,
   ): Promise<{ success: boolean }> {
     await this.loansService.anular(user.companyId, id, dto.reason, user);
+    return { success: true };
+  }
+
+  /**
+   * Ajuste puntual (ADMIN): 0% para créditos CELULAR / ALQUILER / PRESTACION
+   * creados antes de la regla. Dry-run por defecto; usar ?apply=true para persistir.
+   */
+  @Roles('ADMIN')
+  @Post('maintenance/recalc-no-interest')
+  recalcNoInterest(@CurrentUser() user: RequestUser, @Query('apply') apply?: string) {
+    return this.loansService.recalcNoInterestLoans(user.companyId, apply === 'true', user);
+  }
+
+  /** Elimina definitivamente un crédito rechazado/pendiente (ADMIN). */
+  @Roles('ADMIN')
+  @Delete(':id')
+  async remove(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ): Promise<{ success: boolean }> {
+    await this.loansService.remove(user.companyId, id, user);
     return { success: true };
   }
 }
