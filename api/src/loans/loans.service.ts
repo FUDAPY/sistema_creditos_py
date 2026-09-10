@@ -38,6 +38,10 @@ export interface LoanDoc extends Document {
   nextDueDate?: number;
   accruedInterestBalance?: number;
   accruedLateFeeBalance?: number;
+  totalAmount?: number;
+  saldoInicial?: number;
+  saldoDefinitivo?: number;
+  saldoProvisorio?: number;
   collectorId?: string;
   collectorName?: string;
   hasPagare?: boolean;
