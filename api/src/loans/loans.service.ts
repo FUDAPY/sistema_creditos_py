@@ -101,7 +101,8 @@ export class LoansService {
       }
     }
     for (const row of publicRows) {
-      if (!row.clientId || !String(row.clientName || '').trim()) row.clientMissing = true;
+      // Solo se marca huérfano si NO hay nombre; los espejos externos traen nombre sin clientId local.
+      if (!String(row.clientName || '').trim()) row.clientMissing = true;
     }
 
     // Saldos calculados (tiempo real): Saldo = Capital + Interés + Mora (− abonos ya aplicados

@@ -9,6 +9,7 @@ import { Model, Document } from 'mongoose';
 import { randomUUID } from 'crypto';
 import type { PaymentType } from '@syscreditos/shared';
 import { AuditService } from '../audit/audit.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import type { RequestUser } from '../common/types';
 import { accrueLoanState } from '../loans/loan.utils';
 
@@ -125,6 +126,7 @@ export class PaymentsService {
     @InjectModel('Payment') private readonly paymentModel: Model<PaymentDoc>,
     @InjectModel('Loan') private readonly loanModel: Model<LoanDoc>,
     private readonly audit: AuditService,
+    private readonly integrations: IntegrationsService,
   ) {}
 
   toPublic(doc: PaymentDoc): Record<string, unknown> {
@@ -471,6 +473,29 @@ export class PaymentsService {
       },
       actor,
     });
+
+    // Write-back al sistema externo (jurídico): descuenta saldo y registra movimiento.
+    const externalSource = (loan as unknown as { externalSource?: string }).externalSource;
+    const externalId = (loan as unknown as { externalId?: string }).externalId;
+    if (externalSource && externalId) {
+      try {
+        await this.integrations.applyExternalPayment(
+          externalSource,
+          externalId,
+          payment.amount || 0,
+          `Recibo ${paymentId}`,
+        );
+        // eslint-disable-next-line no-console
+        console.log(`[payments:approve] Write-back ${externalSource} OK (${externalId}).`);
+      } catch (wbErr) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[payments:approve] Write-back ${externalSource} falló (${externalId}): ${
+            wbErr instanceof Error ? wbErr.message : String(wbErr)
+          }`,
+        );
+      }
+    }
   }
 
   /** Rechaza/anula un pago. Si estaba pendiente solo revierte contadores; si ya impactaba, revierte el credito. */

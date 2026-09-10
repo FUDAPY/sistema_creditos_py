@@ -7,8 +7,13 @@ import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { UsersService } from './users/users.service';
+import { installStandaloneTransactions } from './common/mongo-standalone';
 
 async function bootstrap() {
+  // Compatibilidad con MongoDB standalone (sin replica set): evita el error
+  // "Transaction numbers are only allowed on a replica set member or mongos".
+  installStandaloneTransactions();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
 

@@ -183,9 +183,77 @@ export async function fetchJuridicoCreditos(uri: string, dbName: string): Promis
 }
 
 /**
- * Prueba varias URIs separadas por coma en orden (ej. interna de Dokploy + pública).
- * Recién falla si todas las conexiones fallan, con un mensaje accionable.
+ * Aplica un cobro aprobado en el sistema jurídico:
+ *  - descuenta `saldoPendiente` del crédito externo
+ *  - registra el movimiento en `movimientofinancieros`
+ * Prueba las URIs configuradas en orden (interna/pública).
  */
+export async function applyJuridicoPayment(
+  uriCsv: string,
+  dbName: string,
+  creditoExternalId: string,
+  amount: number,
+  note = '',
+): Promise<{ ok: true }> {
+  const uris = uriCsv
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (uris.length === 0) throw new Error('No se configuró ninguna URI para el sistema jurídico.');
+  if (!mongoose.Types.ObjectId.isValid(creditoExternalId)) {
+    throw new Error(`ID de crédito jurídico inválido: ${creditoExternalId}`);
+  }
+
+  const errors: string[] = [];
+  const monto = Math.round(amount);
+  for (const singleUri of uris) {
+    let conn: mongoose.Connection | null = null;
+    try {
+      conn = await mongoose
+        .createConnection(singleUri, { dbName, serverSelectionTimeoutMS: 8000, connectTimeoutMS: 8000 })
+        .asPromise();
+      const db = conn.db;
+      if (!db) throw new Error('No se pudo acceder a la base remota del sistema jurídico.');
+
+      const creditoId = new mongoose.Types.ObjectId(creditoExternalId);
+      const res = await db
+        .collection('creditos')
+        .updateOne(
+          { _id: creditoId },
+          { $inc: { saldoPendiente: -monto }, $set: { updatedAt: new Date() } },
+        );
+      if (res.matchedCount === 0) {
+        throw new Error(`Crédito jurídico ${creditoExternalId} no encontrado en la base remota.`);
+      }
+
+      const now = new Date();
+      await db.collection('movimientofinancieros').insertOne({
+        tipo: 'ingreso',
+        concepto: `Cobro SysCreditos${note ? ` - ${note}` : ''}`,
+        monto,
+        moneda: 'PYG',
+        metodoPago: 'efectivo',
+        fecha: now,
+        cliente: null,
+        expediente: null,
+        numeroCuota: null,
+        registradoPor: null,
+        notas: note,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ok: true };
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (conn) await conn.close();
+    }
+  }
+  throw new Error(
+    `No se pudo aplicar el cobro en el sistema jurídico (${uris.length} URI(s) probadas). Último error: ${errors[errors.length - 1]}`,
+  );
+}
+
 export async function fetchJuridicoCreditosWithFallback(
   uriCsv: string,
   dbName: string,

@@ -7,6 +7,7 @@ import type {
 } from './integrations.types';
 import {
   fetchJuridicoCreditosWithFallback,
+  applyJuridicoPayment,
   type JuridicoCreditoView,
 } from './juridico.connector';
 import { fetchPosCreditos } from './pos.connector';
@@ -82,6 +83,29 @@ export class IntegrationsService {
     }
     // TODO(fase de reconexion): implementar el adaptador especifico (lectura/escritura HTTP).
     return { system, ran: false };
+  }
+
+  /**
+   * Aplica (write-back) un cobro aprobado en el sistema de origen.
+   * Jurídico: descuenta el saldo del crédito externo y registra el movimiento.
+   * POS: pendiente de su API (se informa sin romper la aprobación local).
+   */
+  async applyExternalPayment(
+    sistema: string,
+    externalId: string,
+    amount: number,
+    note = '',
+  ): Promise<void> {
+    if (sistema === 'juridico') {
+      const uri = this.config.get<string>('INTEGRATION_JURIDICO_URL', '');
+      const db = this.config.get<string>('INTEGRATION_JURIDICO_DB', 'sysjuridico');
+      if (!uri) throw new Error('Integración jurídico sin configurar (INTEGRATION_JURIDICO_URL).');
+      await applyJuridicoPayment(uri, db, externalId, amount, note);
+      return;
+    }
+    throw new Error(
+      `El sistema "${sistema}" aún no tiene API de escritura configurada para aplicar el cobro.`,
+    );
   }
 
   /** Devuelve clientes con creditos juridicos (lectura SOLO-lectura de la MongoDB remota). */

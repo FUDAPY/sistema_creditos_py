@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { IntegrationsService } from '../integrations/integrations.service';
-import type { IntegrationSystem } from '../integrations/integrations.types';
+import type { IntegrationSystem, RemoteCredit } from '../integrations/integrations.types';
 
 interface ExternalCreditDoc {
   _id: string;
@@ -47,6 +47,7 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @InjectModel('ExternalCredit') private readonly model: Model<ExternalCreditDoc>,
+    @InjectModel('Loan') private readonly loanModel: Model<Record<string, unknown>>,
     private readonly config: ConfigService,
     private readonly integrations: IntegrationsService,
   ) {}
@@ -130,6 +131,8 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
           )
           .exec();
         imported += 1;
+        // Espejo local cobrable del crédito externo (para el flujo de cobro/rendición).
+        await this.mirrorLoan(system, companyId, row, syncedAt);
       }
 
       return { sistema: system, imported, skipped, total: rows.length, syncedAt } satisfies SyncResult;
@@ -141,6 +144,60 @@ export class ExternalCreditsService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.running.delete(system);
     }
+  }
+
+  /** Crea/actualiza el crédito espejo local (cobrable) del crédito externo sincronizado. */
+  private async mirrorLoan(
+    system: IntegrationSystem,
+    companyId: string,
+    row: RemoteCredit,
+    syncedAt: number,
+  ): Promise<void> {
+    if (!row.externalId) return;
+    const id = `ext-${system}-${row.externalId}`;
+    const existing = await this.loanModel.findOne({ _id: id }).exec();
+    const base = {
+      clientName: row.clienteNombre || '',
+      clientNameLower: (row.clienteNombre || '').trim().toLowerCase(),
+      principal: Math.round(row.montoTotal || 0),
+      totalAmount: Math.round(row.montoTotal || 0),
+      updatedAt: syncedAt,
+    };
+    if (!existing) {
+      const saldo = Math.max(0, Math.round(row.saldoPendiente || 0));
+      await this.loanModel.create({
+        _id: id,
+        id,
+        companyId,
+        clientId: row.clienteJuridicoId || '',
+        clientDocumentId: row.cedula || '',
+        clientPhone: row.telefono || '',
+        clientAddress: row.direccion || '',
+        collectorId: '',
+        collectorName: '',
+        currency: 'PYG',
+        interestRate: 0,
+        loanType: 'PRESTAMO',
+        ...base,
+        paidAmount: 0,
+        currentBalance: saldo,
+        accruedInterestBalance: 0,
+        accruedLateFeeBalance: 0,
+        status: saldo > 0 ? 'ACTIVE' : 'PAID',
+        approvalStatus: 'APPROVED',
+        grantedAt: syncedAt,
+        expiresAt: syncedAt,
+        nextDueDate: syncedAt,
+        cycleDays: 30,
+        origen: system === 'juridico' ? 'juridico' : 'pos',
+        externalSource: system,
+        externalId: row.externalId,
+        createdAt: syncedAt,
+      });
+      return;
+    }
+    // En actualizaciones NO se toca el saldo local (puede haber cobros aplicados).
+    await this.loanModel.updateOne({ _id: id }, { $set: base }).exec();
   }
 
   async list(system: IntegrationSystem, companyIdOverride?: string): Promise<ExternalCreditDoc[]> {

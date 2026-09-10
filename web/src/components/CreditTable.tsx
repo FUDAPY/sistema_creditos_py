@@ -28,6 +28,8 @@ export interface LoanRow {
   approvalStatus?: string;
   collectorName?: string;
   collectorId?: string;
+  /** Origen del crédito (sistema_creditos, empeno, alquiler, prestacion_servicios, pos, juridico). */
+  origen?: string;
   clientMissing?: boolean;
   grantedAt?: number;
   expiresAt?: number;

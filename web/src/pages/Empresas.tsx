@@ -54,20 +54,25 @@ export default function Empresas({ categoria }: { categoria: string }) {
   };
 
   useEffect(() => {
-    if (isExternal) {
-      loadExternal();
-      return;
-    }
     const params = new URLSearchParams();
     if (user?.role === 'COLLECTOR') params.set('collectorId', user.uid);
     api<LoanRow[]>(`/loans?approvalStatus=APPROVED&${params.toString()}`)
       .then(setLoans)
       .catch((e) => setError(e.message));
+    if (isExternal) {
+      loadExternal();
+    }
     if (categoria === 'tragamonedas') {
       api<SiteRow[]>('/slot-machines/sites').then(setSites).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, categoria, reloadVersion]);
+
+  // Créditos espejo locales de los sistemas externos (cobrables con el flujo normal).
+  const mirrorLoans = useMemo(
+    () => loans.filter((l) => l.origen === categoria),
+    [loans, categoria],
+  );
 
   const rows = useMemo(() => {
     if (isExternal) return [];
@@ -119,7 +124,24 @@ export default function Empresas({ categoria }: { categoria: string }) {
         {info && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{info}</div>}
         {error && <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div>}
 
-        {isExternal ? (
+        {isExternal && (
+          <div className="space-y-3">
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500">
+              {external.length} créditos sincronizados ({TITLES[categoria]}){lastSync ? ` · último sync: ${fmtDate(lastSync)}` : ''}. Los cobros se registran aquí y, al aprobarlos, se aplican automáticamente en el sistema de origen.
+            </p>
+            {mirrorLoans.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-400">
+                {categoria === 'pos'
+                  ? 'Sin créditos POS sincronizados: configurá INTEGRATION_POS_URL para importarlos.'
+                  : 'Sin créditos sincronizados todavía. Presioná "Sincronizar ahora" (ADMIN).'}
+              </p>
+            ) : (
+              <CreditTable loans={mirrorLoans} reload={reload} />
+            )}
+          </div>
+        )}
+
+        {false && (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full whitespace-nowrap text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -172,7 +194,9 @@ export default function Empresas({ categoria }: { categoria: string }) {
               </tbody>
             </table>
           </div>
-        ) : categoria === 'tragamonedas' ? (
+        )}
+
+        {categoria === 'tragamonedas' ? (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
